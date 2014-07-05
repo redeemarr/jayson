@@ -227,7 +227,7 @@ public:
 	{
 	}
 
-	void write(value& v, options const& options = writer::options())
+	void write(value const& v, options const& options = writer::options())
 	{
 		m_options = options;
 		m_indents = 0;
@@ -265,7 +265,7 @@ private:
 		}
 	}
 
-	std::ostream& write_value(value& v)
+	std::ostream& write_value(value const& v)
 	{
 		switch (v.type())
 		{
@@ -355,14 +355,14 @@ private:
 	}
 };
 
-inline void to_file(char const* filename, value& v, writer::options const& options = writer::options())
+inline void to_file(char const* filename, value const& v, writer::options const& options = writer::options())
 {
 	std::ofstream ofs(filename, std::ios::binary);
 	writer w(ofs);
 	w.write(v, options);
 }
 
-inline std::string to_string(value& v, writer::options const& options = writer::options())
+inline std::string to_string(value const& v, writer::options const& options = writer::options())
 {
 	std::ostringstream oss;
 	writer w(oss);
