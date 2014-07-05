@@ -7,8 +7,7 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
-		260CEA4019680FE100F52BA2 /* main.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 260CEA3F19680FE100F52BA2 /* main.cpp */; };
-		260CEA4219680FE100F52BA2 /* jayson.1 in CopyFiles */ = {isa = PBXBuildFile; fileRef = 260CEA4119680FE100F52BA2 /* jayson.1 */; };
+		260CEA4A1968100600F52BA2 /* main.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 260CEA491968100600F52BA2 /* main.cpp */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXCopyFilesBuildPhase section */
@@ -18,7 +17,6 @@
 			dstPath = /usr/share/man/man1/;
 			dstSubfolderSpec = 0;
 			files = (
-				260CEA4219680FE100F52BA2 /* jayson.1 in CopyFiles */,
 			);
 			runOnlyForDeploymentPostprocessing = 1;
 		};
@@ -26,8 +24,8 @@
 
 /* Begin PBXFileReference section */
 		260CEA3C19680FE100F52BA2 /* jayson */ = {isa = PBXFileReference; explicitFileType = "compiled.mach-o.executable"; includeInIndex = 0; path = jayson; sourceTree = BUILT_PRODUCTS_DIR; };
-		260CEA3F19680FE100F52BA2 /* main.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; path = main.cpp; sourceTree = "<group>"; };
-		260CEA4119680FE100F52BA2 /* jayson.1 */ = {isa = PBXFileReference; lastKnownFileType = text.man; path = jayson.1; sourceTree = "<group>"; };
+		260CEA4819680FF300F52BA2 /* jayson.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = jayson.h; sourceTree = "<group>"; };
+		260CEA491968100600F52BA2 /* main.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; path = main.cpp; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -44,7 +42,8 @@
 		260CEA3319680FE100F52BA2 = {
 			isa = PBXGroup;
 			children = (
-				260CEA3E19680FE100F52BA2 /* jayson */,
+				260CEA4819680FF300F52BA2 /* jayson.h */,
+				260CEA491968100600F52BA2 /* main.cpp */,
 				260CEA3D19680FE100F52BA2 /* Products */,
 			);
 			sourceTree = "<group>";
@@ -55,15 +54,6 @@
 				260CEA3C19680FE100F52BA2 /* jayson */,
 			);
 			name = Products;
-			sourceTree = "<group>";
-		};
-		260CEA3E19680FE100F52BA2 /* jayson */ = {
-			isa = PBXGroup;
-			children = (
-				260CEA3F19680FE100F52BA2 /* main.cpp */,
-				260CEA4119680FE100F52BA2 /* jayson.1 */,
-			);
-			path = jayson;
 			sourceTree = "<group>";
 		};
 /* End PBXGroup section */
@@ -117,7 +107,7 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				260CEA4019680FE100F52BA2 /* main.cpp in Sources */,
+				260CEA4A1968100600F52BA2 /* main.cpp in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
