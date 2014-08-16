@@ -1,750 +1,792 @@
 #ifndef JAYSON_H
 #define JAYSON_H
 
-// rev. 2
+// rev. 3
+
+#ifndef _MSC_VER
+#define NOEXCEPT noexcept
+#else
+#define NOEXCEPT
+#endif
 
 #include <string>
 #include <vector>
 #include <unordered_map>
 #include <sstream>
 #include <fstream>
+#include <iomanip>
 
 namespace json
 {
-
-class value;
-
-typedef char type_t;
-
-static type_t const type_null    = ' ';
-static type_t const type_number  = 'n';
-static type_t const type_boolean = 'b';
-static type_t const type_string  = 's';
-static type_t const type_array   = 'a';
-static type_t const type_object  = 'o';
-
-typedef float                               number_t;
-typedef bool                                boolean_t;
-typedef std::string                         string_t;
-typedef std::vector<value>                  array_t;
-typedef std::unordered_map<string_t, value> object_t;
-
-class value
-{
-public:
-
-	value() : m_type(type_null) {}
-	value(type_t type) : m_type(type) { create(); }
-	value(value const& v) : m_type(type_null) { *this = v; }
-
-	value(number_t v) : m_type(type_number)           { create();  data.n = v; }
-	value(boolean_t v) : m_type(type_boolean)         { create();  data.b = v; }
-	value(string_t const& v) : m_type(type_string)    { create(); *data.s = v; }
-	value(array_t const& v) : m_type(type_array)      { create(); *data.a = v; }
-	value(object_t const& v) : m_type(type_object)    { create(); *data.o = v; }
-
-	value(char const* s) : m_type(type_string)        { create(); *data.s = s; }
-	value(int n) : m_type(type_number)                { create(); data.n = static_cast<number_t>(n); }
-	value(unsigned int n) : m_type(type_number)       { create(); data.n = static_cast<number_t>(n); }
-	value(long n) : m_type(type_number)               { create(); data.n = static_cast<number_t>(n); }
-	value(unsigned long n) : m_type(type_number)      { create(); data.n = static_cast<number_t>(n); }
-	value(long long n) : m_type(type_number)          { create(); data.n = static_cast<number_t>(n); }
-	value(unsigned long long n) : m_type(type_number) { create(); data.n = static_cast<number_t>(n); }
-	value(double n) : m_type(type_number)             { create(); data.n = static_cast<number_t>(n); }
-
-	~value() { destroy(); }
-
-	value& operator = (value const& v)
-	{
-		type(v.m_type);
-		switch (m_type)
-		{
-			case type_null:                        break;
-			case type_number:  data.n =  v.data.n; break;
-			case type_boolean: data.b =  v.data.b; break;
-			case type_string: *data.s = *v.data.s; break;
-			case type_array:  *data.a = *v.data.a; break;
-			case type_object: *data.o = *v.data.o; break;
-		}
-		return *this;
-	}
-
-	inline type_t type() const { return m_type; }
-
-	void type(type_t t)
-	{
-		if (m_type != t)
-		{
-			destroy();
-			m_type = t;
-			create();
-		}
-	}
-
-	inline bool is_null()    const { return m_type == type_null;    }
-	inline bool is_number()  const { return m_type == type_number;  }
-	inline bool is_boolean() const { return m_type == type_boolean; }
-	inline bool is_string()  const { return m_type == type_string;  }
-	inline bool is_array()   const { return m_type == type_array;   }
-	inline bool is_object()  const { return m_type == type_object;  }
-
-	inline void             number(number_t val)   { set<number_t>(val); }
-	inline number_t&        number()               { return get<number_t>(); }
-	inline number_t const&  number() const         { return get_const<number_t>(); }
-
-	inline void             boolean(boolean_t val) { set<boolean_t>(val); }
-	inline boolean_t&       boolean()              { return get<boolean_t>(); }
-	inline boolean_t const& boolean() const        { return get_const<boolean_t>(); }
-
-	inline void             string(string_t val)   { set<string_t>(val); }
-	inline string_t&        string()               { return get<string_t>(); }
-	inline string_t const&  string() const         { return get_const<string_t>(); }
-
-	inline void             array(array_t val)     { set<array_t>(val); }
-	inline array_t&         array()                { return get<array_t>(); }
-	inline array_t const&   array() const          { return get_const<array_t>(); }
-
-	inline void             object(object_t val)   { set<object_t>(val); }
-	inline object_t&        object()               { return get<object_t>(); }
-	inline object_t const&  object() const         { return get_const<object_t>(); }
-
-private:
-
-	union data_t
-	{
-		number_t  n;
-		boolean_t b;
-		string_t* s;
-		array_t*  a;
-		object_t* o;
-	};
-
-	type_t m_type;
-	data_t data;
 	
-	template <typename T> T& ref();
-	template <typename T> T const& ref_const() const;
-	template <typename T> type_t get_type() const;
-
-	char const* type_name(type_t t) const
-	{
-		switch (t)
-		{
-		case type_null:    return "null";
-		case type_number:  return "number";
-		case type_boolean: return "boolean";
-		case type_string:  return "string";
-		case type_array:   return "array";
-		case type_object:  return "object";
-		}
-		return "unknown";
-	}
-
-	void check_type(type_t t) const
-	{
-		if (m_type != t)
-		{
-			std::ostringstream oss;
-			oss << "invalid json cast: " << type_name(m_type) << " -> " << type_name(t);
-			throw std::runtime_error(oss.str());
-		}
-	}
-
-	template <typename T> void set(T const& t)
-	{
-		type(get_type<T>());
-		ref<T>() = t;
-	}
-
-	template <typename T> T& get()
-	{
-		check_type(get_type<T>());
-		return ref<T>();
-	}
-
-	template <typename T> T const& get_const() const
-	{
-		check_type(get_type<T>());
-		return ref_const<T>();
-	}
-
-	void destroy()
-	{
-		switch (m_type)
-		{
-		case type_string: delete data.s; break;
-		case type_array:  delete data.a; break;
-		case type_object: delete data.o; break;
-		}
-	}
-
-	void create()
-	{
-		switch (m_type)
-		{
-		case type_string: data.s = new string_t(); break;
-		case type_array:  data.a = new array_t();  break;
-		case type_object: data.o = new object_t(); break;
-		}
-	}
-};
+	class value;
 	
-template <> number_t&  value::ref<number_t>()  { return  data.n; }
-template <> boolean_t& value::ref<boolean_t>() { return  data.b; }
-template <> string_t&  value::ref<string_t>()  { return *data.s; }
-template <> array_t&   value::ref<array_t>()   { return *data.a; }
-template <> object_t&  value::ref<object_t>()  { return *data.o; }
-
-template <> number_t const&  value::ref_const<number_t>()  const { return  data.n; }
-template <> boolean_t const& value::ref_const<boolean_t>() const { return  data.b; }
-template <> string_t const&  value::ref_const<string_t>()  const { return *data.s; }
-template <> array_t const&   value::ref_const<array_t>()   const { return *data.a; }
-template <> object_t const&  value::ref_const<object_t>()  const { return *data.o; }
-
-template <> type_t value::get_type<number_t>()  const { return type_number;  }
-template <> type_t value::get_type<boolean_t>() const { return type_boolean; }
-template <> type_t value::get_type<string_t>()  const { return type_string;  }
-template <> type_t value::get_type<array_t>()   const { return type_array;   }
-template <> type_t value::get_type<object_t>()  const { return type_object;  }
-
-class writer
-{
-public:
-
-	struct options
+	typedef char type_t;
+	
+	static type_t const type_null    = ' ';
+	static type_t const type_number  = 'n';
+	static type_t const type_boolean = 'b';
+	static type_t const type_string  = 's';
+	static type_t const type_array   = 'a';
+	static type_t const type_object  = 'o';
+	
+	typedef double                              number_t;
+	typedef bool                                boolean_t;
+	typedef std::string                         string_t;
+	typedef std::vector<value>                  array_t;
+	typedef std::unordered_map<string_t, value> object_t;
+	
+	class value
 	{
-		bool formatted;
-		std::string tab_character;
-
-		options()
-		: formatted(true)
-		, tab_character("  ")
-		{}
-	};
-
-	writer(std::ostream& os)
-	: m_os(os)
-	{
-	}
-
-	void write(value const& v, options const& options = writer::options())
-	{
-		m_options = options;
-		m_indents = 0;
-		write_value(v);
-	}
-
-private:
-
-	writer(writer&);
-	writer& operator = (writer&);
-
-	std::ostream& m_os;
-	int     m_indents;
-	options m_options;
-
-	void write_string(std::string const& str)
-	{
-		for (auto c : str)
+	public:
+		
+		value() : m_type(type_null) {}
+		value(type_t type) : m_type(type) { create(); }
+		value(value const& v) : m_type(type_null) { *this = v; }
+		value(value&& v) NOEXCEPT : m_type(type_null) { *this = std::move(v); }
+		
+		value(number_t v) : m_type(type_number)           { create();  data.n = v; }
+		value(boolean_t v) : m_type(type_boolean)         { create();  data.b = v; }
+		value(string_t const& v) : m_type(type_string)    { create(); *data.s = v; }
+		value(array_t const& v) : m_type(type_array)      { create(); *data.a = v; }
+		value(object_t const& v) : m_type(type_object)    { create(); *data.o = v; }
+		
+		value(char const* s) : m_type(type_string)        { create(); *data.s = s; }
+		value(int n) : m_type(type_number)                { create();  data.n = static_cast<number_t>(n); }
+		value(unsigned int n) : m_type(type_number)       { create();  data.n = static_cast<number_t>(n); }
+		value(long n) : m_type(type_number)               { create();  data.n = static_cast<number_t>(n); }
+		value(unsigned long n) : m_type(type_number)      { create();  data.n = static_cast<number_t>(n); }
+		value(long long n) : m_type(type_number)          { create();  data.n = static_cast<number_t>(n); }
+		value(unsigned long long n) : m_type(type_number) { create();  data.n = static_cast<number_t>(n); }
+		
+		~value() { destroy(); }
+		
+		value& operator = (value const& v)
 		{
-			switch (c)
+			type(v.m_type);
+			switch (m_type)
 			{
-			case '"':  m_os << "\\\""; break;
-		//	case '/':  m_os << "\\/";  break;
-			case '\\': m_os << "\\\\"; break;
-			case '\b': m_os << "\\b";  break;
-			case '\f': m_os << "\\f";  break;
-			case '\n': m_os << "\\n";  break;
-			case '\r': m_os << "\\r";  break;
-			case '\t': m_os << "\\t";  break;
-		//	case '\u': /* TODO */    break;
-			default:
-				m_os << c;
-				break;
+				case type_null:                        break;
+				case type_number:  data.n =  v.data.n; break;
+				case type_boolean: data.b =  v.data.b; break;
+				case type_string: *data.s = *v.data.s; break;
+				case type_array:  *data.a = *v.data.a; break;
+				case type_object: *data.o = *v.data.o; break;
+			}
+			return *this;
+		}
+		
+		value& operator = (value&& v)
+		{
+			std::swap(m_type, v.m_type);
+			std::swap(data, v.data);
+			return *this;
+		}
+		
+		inline type_t type() const { return m_type; }
+		
+		void type(type_t t)
+		{
+			if (m_type != t)
+			{
+				destroy();
+				m_type = t;
+				create();
 			}
 		}
-	}
-
-	std::ostream& write_value(value const& v)
-	{
-		switch (v.type())
+		
+		inline bool is_null()    const { return m_type == type_null;    }
+		inline bool is_number()  const { return m_type == type_number;  }
+		inline bool is_boolean() const { return m_type == type_boolean; }
+		inline bool is_string()  const { return m_type == type_string;  }
+		inline bool is_array()   const { return m_type == type_array;   }
+		inline bool is_object()  const { return m_type == type_object;  }
+		
+		inline void             number(number_t val)   { set<number_t>(val); }
+		inline number_t&        number()               { return get<number_t>(); }
+		inline number_t const&  number() const         { return get_const<number_t>(); }
+		
+		inline void             boolean(boolean_t val) { set<boolean_t>(val); }
+		inline boolean_t&       boolean()              { return get<boolean_t>(); }
+		inline boolean_t const& boolean() const        { return get_const<boolean_t>(); }
+		
+		inline void             string(string_t val)   { set<string_t>(val); }
+		inline string_t&        string()               { return get<string_t>(); }
+		inline string_t const&  string() const         { return get_const<string_t>(); }
+		
+		inline void             array(array_t val)     { set<array_t>(val); }
+		inline array_t&         array()                { return get<array_t>(); }
+		inline array_t const&   array() const          { return get_const<array_t>(); }
+		
+		inline void             object(object_t val)   { set<object_t>(val); }
+		inline object_t&        object()               { return get<object_t>(); }
+		inline object_t const&  object() const         { return get_const<object_t>(); }
+		
+	private:
+		
+		union data_t
 		{
-		case type_null:
-			m_os << "null";
-			break;
-
-		case type_number:
-			m_os << v.number();
-			break;
-
-		case type_boolean:
-			m_os << (v.boolean() ? "true" : "false");
-			break;
-
-		case type_string:
-			m_os << "\"";
-			write_string(v.string());
-			m_os << "\"";
-			break;
-
-		case type_array:
+			number_t  n;
+			boolean_t b;
+			string_t* s;
+			array_t*  a;
+			object_t* o;
+		};
+		
+		type_t m_type;
+		data_t data;
+		
+		template <typename T> T& ref();
+		template <typename T> T const& ref_const() const;
+		template <typename T> type_t get_type() const;
+		
+		char const* type_name(type_t t) const
+		{
+			switch (t)
 			{
-				array_t const& a = v.array();
-				put_newline();
-				m_os << "[";
-				++m_indents;
-				put_newline();
-				std::size_t i = 0;
-				for (auto elem : a)
+				case type_null:    return "null";
+				case type_number:  return "number";
+				case type_boolean: return "boolean";
+				case type_string:  return "string";
+				case type_array:   return "array";
+				case type_object:  return "object";
+			}
+			return "unknown";
+		}
+		
+		void check_type(type_t t) const
+		{
+			if (m_type != t)
+			{
+				std::ostringstream oss;
+				oss << "invalid json cast: " << type_name(m_type) << " -> " << type_name(t);
+				throw std::runtime_error(oss.str());
+			}
+		}
+		
+		template <typename T> void set(T const& t)
+		{
+			type(get_type<T>());
+			ref<T>() = t;
+		}
+		
+		template <typename T> T& get()
+		{
+			check_type(get_type<T>());
+			return ref<T>();
+		}
+		
+		template <typename T> T const& get_const() const
+		{
+			check_type(get_type<T>());
+			return ref_const<T>();
+		}
+		
+		void destroy()
+		{
+			switch (m_type)
+			{
+				case type_string: delete data.s; break;
+				case type_array:  delete data.a; break;
+				case type_object: delete data.o; break;
+			}
+		}
+		
+		void create()
+		{
+			switch (m_type)
+			{
+				case type_string: data.s = new string_t(); break;
+				case type_array:  data.a = new array_t();  break;
+				case type_object: data.o = new object_t(); break;
+			}
+		}
+	};
+	
+	template <> inline number_t&  value::ref<number_t>()  { return  data.n; }
+	template <> inline boolean_t& value::ref<boolean_t>() { return  data.b; }
+	template <> inline string_t&  value::ref<string_t>()  { return *data.s; }
+	template <> inline array_t&   value::ref<array_t>()   { return *data.a; }
+	template <> inline object_t&  value::ref<object_t>()  { return *data.o; }
+	
+	template <> inline number_t  const& value::ref_const<number_t>()  const { return  data.n; }
+	template <> inline boolean_t const& value::ref_const<boolean_t>() const { return  data.b; }
+	template <> inline string_t  const& value::ref_const<string_t>()  const { return *data.s; }
+	template <> inline array_t   const& value::ref_const<array_t>()   const { return *data.a; }
+	template <> inline object_t  const& value::ref_const<object_t>()  const { return *data.o; }
+	
+	template <> inline type_t value::get_type<number_t>()  const { return type_number;  }
+	template <> inline type_t value::get_type<boolean_t>() const { return type_boolean; }
+	template <> inline type_t value::get_type<string_t>()  const { return type_string;  }
+	template <> inline type_t value::get_type<array_t>()   const { return type_array;   }
+	template <> inline type_t value::get_type<object_t>()  const { return type_object;  }
+	
+	class writer
+	{
+	public:
+		
+		struct options
+		{
+			bool formatted;
+			std::string tab_character;
+			
+			options()
+			: formatted(true)
+			, tab_character("  ")
+			{}
+		};
+		
+		writer(std::ostream& os)
+		: m_os(os)
+		{
+			m_os << std::setprecision(20);
+		}
+		
+		void write(value const& v, options const& options = writer::options())
+		{
+			m_options = options;
+			m_indents = 0;
+			write_value(v);
+		}
+		
+	private:
+		
+		writer(writer&);
+		writer& operator = (writer&);
+		
+		std::ostream& m_os;
+		int     m_indents;
+		options m_options;
+		
+		void write_string(std::string const& str)
+		{
+			for (auto c : str)
+			{
+				switch (c)
 				{
-					write_value(elem);
-					if (++i != a.size())
+					case '"':  m_os << "\\\""; break;
+						//	case '/':  m_os << "\\/";  break;
+					case '\\': m_os << "\\\\"; break;
+					case '\b': m_os << "\\b";  break;
+					case '\f': m_os << "\\f";  break;
+					case '\n': m_os << "\\n";  break;
+					case '\r': m_os << "\\r";  break;
+					case '\t': m_os << "\\t";  break;
+						//	case '\u': /* TODO */    break;
+					default:
+						m_os << c;
+						break;
+				}
+			}
+		}
+		
+		std::ostream& write_value(value const& v)
+		{
+			switch (v.type())
+			{
+				case type_null:
+					m_os << "null";
+					break;
+					
+				case type_number:
+					m_os << v.number();
+					break;
+					
+				case type_boolean:
+					m_os << (v.boolean() ? "true" : "false");
+					break;
+					
+				case type_string:
+					m_os << "\"";
+					write_string(v.string());
+					m_os << "\"";
+					break;
+					
+				case type_array:
+				{
+					array_t const& a = v.array();
+					put_newline();
+					m_os << "[";
+					++m_indents;
+					put_newline();
+					std::size_t i = 0;
+					for (auto const& elem : a)
 					{
-						m_os << ",";
+						write_value(elem);
+						if (++i != a.size())
+						{
+							m_os << ",";
+							put_space();
+						}
+					}
+					--m_indents;
+					put_newline();
+					m_os << "]";
+				}
+					break;
+					
+				case type_object:
+				{
+					put_newline();
+					m_os << "{";
+					++m_indents;
+					put_newline();
+					object_t const& o = v.object();
+					std::size_t i = 0;
+					for (auto const& it : o)
+					{
+						m_os << "\"" << it.first << "\"";
 						put_space();
+						m_os << ':';
+						put_space();
+						write_value(it.second);
+						if (++i != o.size())
+						{
+							m_os << ",";
+							put_newline();
+						}
 					}
+					--m_indents;
+					put_newline();
+					m_os << "}";
 				}
-				--m_indents;
-				put_newline();
-				m_os << "]";
+					break;
 			}
-			break;
-
-		case type_object:
+			return m_os;
+		}
+		
+		void put_space()
+		{
+			if (m_options.formatted) m_os << ' ';
+		}
+		
+		void put_newline()
+		{
+			if (m_options.formatted)
 			{
-				put_newline();
-				m_os << "{";
-				++m_indents;
-				put_newline();
-				object_t const& o = v.object();
-				std::size_t i = 0;
-				for (auto it : o)
-				{
-					m_os << "\"" << it.first << "\"";
-					put_space();
-					m_os << ':';
-					put_space();
-					write_value(it.second);
-					if (++i != o.size())
-					{
-						m_os << ",";
-						put_newline();
-					}
-				}
-				--m_indents;
-				put_newline();
-				m_os << "}";
+				m_os << '\n';
+				for (int i = 0; i < m_indents; ++i) m_os << m_options.tab_character;
 			}
-			break;
 		}
-		return m_os;
-	}
-
-	void put_space()
+	};
+	
+	inline void to_file(char const* filename, value const& v, writer::options const& options = writer::options())
 	{
-		if (m_options.formatted) m_os << ' ';
+		std::ofstream ofs(filename, std::ios::binary);
+		writer w(ofs);
+		w.write(v, options);
 	}
-
-	void put_newline()
+	
+	inline std::string to_string(value const& v, writer::options const& options = writer::options())
 	{
-		if (m_options.formatted)
-		{
-			m_os << '\n';
-			for (int i = 0; i < m_indents; ++i) m_os << m_options.tab_character;
-		}
+		std::ostringstream oss;
+		writer w(oss);
+		w.write(v, options);
+		return oss.str();
 	}
-};
-
-inline void to_file(char const* filename, value const& v, writer::options const& options = writer::options())
-{
-	std::ofstream ofs(filename, std::ios::binary);
-	writer w(ofs);
-	w.write(v, options);
-}
-
-inline std::string to_string(value const& v, writer::options const& options = writer::options())
-{
-	std::ostringstream oss;
-	writer w(oss);
-	w.write(v, options);
-	return oss.str();
-}
-
-class reader
-{
-public:
-
-	reader(std::istream& is) : is(is) {}
-
-	bool read(value& result)
+	
+	class reader
 	{
-		log_str.clear();
-		if (is)
+	public:
+		
+		reader(std::string const& str) : m_str(str)
 		{
-			return read_value(result);
+			string_buf.reserve(64);
 		}
-		else
+		
+		bool read(value& result)
 		{
-			log_str = "json source data is unavailable";
-			return false;
-		}
-	}
-
-	std::string const& get_log() const { return log_str; }
-
-private:
-
-	typedef std::string::const_iterator pos_t;
-
-	std::istream& is;
-	std::string   log_str;
-
-	reader(reader&);
-	reader& operator = (reader&);
-
-	void fail(char const* why)
-	{
-		std::streamoff c = is.tellg();
-		std::streamoff p = c;
-		while (p >= 0)
-		{
-			is.seekg(-1, std::ios::cur);
-			p = is.tellg();
-			if (is.peek() == '\n') break;
-			log_str.insert(0, 1, is.peek());
-		}
-
-		is.seekg(c, std::ios::beg);
-		log_str += "<?>";
-
-		//p = is.tellg();
-		while (is.peek() != '\n' && !is.eof())
-		{
-			int u = is.peek();
-			if (is.eof()) break;
-			if (is.fail()) break;
-			log_str += u;
-			is.seekg(1, std::ios::cur);
-		}
-
-		log_str.insert(0, ": ");
-		log_str.insert(0, why);
-	}
-
-	inline bool skip_whitespaces()
-	{
-		while (!is.eof())
-		{
-			int c = is.peek();
-			if (!is.eof() && c != ' ' && c != '\t' && c != '\r' && c != '\n')
+			log_str.clear();
+			if (!m_str.empty())
 			{
-				return true;
+				src = m_str.c_str();
+				return read_value(result);
 			}
 			else
 			{
-				is.ignore();
+				result.type(type_null);
+				return false;
 			}
 		}
-		fail("unexpected end of document");
-		return false;
-	}
-
-	bool read_value(value& result)
-	{
-		if (!skip_whitespaces()) return false;
-		switch (is.peek())
+		
+		std::string const& get_log() const { return log_str; }
+		
+	private:
+		
+		std::string const& m_str;
+		
+		char const* src;
+		
+		std::string   log_str;
+		std::string   string_buf;
+		
+		reader(reader&);
+		reader& operator = (reader&);
+		
+		void fail(char const* why)
 		{
-		case '[': return read_array (result);
-		case '{': return read_object(result);
-		case '"': return read_string(result);
-		case 'n': return read_null  (result);
-		case 't': return read_true  (result);
-		case 'f': return read_false (result);
-		default:  return read_number(result);
+			char const* begin = m_str.c_str();
+			char const* start_line = src;
+			char const* end_line = src;
+			while (start_line != begin && *start_line != '\n') --start_line;
+			while (end_line != begin && *end_line != '\n' && *end_line != '\0') ++end_line;
+			log_str = why;
+			log_str += ": ";
+			log_str.insert(log_str.end(), start_line, src);
+			log_str += "<?>";
+			log_str.insert(log_str.end(), src, end_line);
 		}
-	}
-
-	inline bool read_object(value& val)
-	{
-		val.type(type_object);
-		is.ignore();
-		while (!is.eof())
+		
+		inline bool skip_whitespaces()
+		{
+			while (*src != '\0')
+			{
+				if (*src != ' ' && *src != '\t' && *src != '\r' && *src != '\n')
+				{
+					return true;
+				}
+				else
+				{
+					++src;
+				}
+			}
+			
+			fail("unexpected end of document");
+			return false;
+		}
+		
+		bool read_value(value& result)
 		{
 			if (!skip_whitespaces()) return false;
-			if (is.peek() == '"')
+			switch (*src)
 			{
-				std::pair<string_t, value> pair;
-				read_raw_string(pair.first);
-
-				object_t& o = val.object();
-				auto it = o.find(pair.first);
-				if (it == o.end())
-				{
-					it = o.insert(o.end(), pair);
-				}
-
+				case '[': return read_array (result);
+				case '{': return read_object(result);
+				case '"': return read_string(result);
+				case 'n': return read_null  (result);
+				case 't': return read_true  (result);
+				case 'f': return read_false (result);
+				default:  return read_number(result);
+			}
+		}
+		
+		inline bool read_object(value& val)
+		{
+			val.type(type_object);
+			++src;
+			while (*src != '\0')
+			{
 				if (!skip_whitespaces()) return false;
-				if (is.get() == ':')
+				if (*src == '"')
 				{
-					if (!read_value(it->second)) return false;
-					if (!skip_whitespaces()) return false;
-
-					switch (is.get())
+					std::pair<string_t, value> pair;
+					read_raw_string(pair.first);
+					
+					object_t& o = val.object();
+					auto it = o.find(pair.first);
+					if (it == o.end())
 					{
-					case ',': break;
-					case '}': return true;
-					default:
-						fail("expected a ',' or '}' after key-value pair");
+						it = o.insert(std::move(pair)).first;
+					}
+					
+					if (!skip_whitespaces()) return false;
+					if (*src++ == ':')
+					{
+						if (!read_value(it->second)) return false;
+						if (!skip_whitespaces()) return false;
+						
+						switch (*src++)
+						{
+							case ',': break;
+							case '}': return true;
+							default:
+								fail("expected ',' or '}' after key-value pair");
+								return false;
+						}
+					}
+					else
+					{
+						fail("expected ':' after pair key");
 						return false;
 					}
 				}
 				else
 				{
-					fail("expected ':' after pair key");
+					fail("expected pair key with quotes");
 					return false;
 				}
 			}
-			else
-			{
-				fail("expected pair key with quotes");
-				return false;
-			}
-		}
-		fail("unexpected end of object");
-		return false;
-	}
-
-	inline bool read_array(value& val)
-	{
-		val.type(type_array);
-		is.ignore();
-		while (!is.eof())
-		{
-			array_t& arr = val.array();
-			arr.push_back(value());
-			value& cval = arr.back();
-			if (!read_value(cval)) return false;
-			if (!skip_whitespaces()) return false;
-
-			switch (is.get())
-			{
-			case ',': break;
-			case ']': return true;
-			default:
-				fail("expected a ',' or ']' after array element");
-				return false;
-			}
-		}
-		fail("unexpected end of array");
-		return false;
-	}
-
-	inline bool read_null(value& val)
-	{
-		char c[4];
-		is.read(c, 4);
-		if (!is.eof() && c[0] == 'n' && c[1] == 'u' && c[2] == 'l' && c[3] == 'l')
-		{
-			val.type(type_null);
-			return true;
-		}
-		else
-		{
-			fail("expected a 'null' value");
+			fail("unexpected end of object");
 			return false;
 		}
-	}
-
-	inline bool read_true(value& val)
-	{
-		char c[4];
-		is.read(c, 4);
-		if (!is.eof() && c[0] == 't' && c[1] == 'r' && c[2] == 'u' && c[3] == 'e')
+		
+		inline bool read_array(value& val)
 		{
-			val.boolean(true);
-			return true;
-		}
-		else
-		{
-			fail("expected a 'true' value");
+			val.type(type_array);
+			++src;
+			while (*src != '\0')
+			{
+				array_t& arr = val.array();
+				arr.emplace_back();
+				if (!read_value(arr.back())) return false;
+				if (!skip_whitespaces()) return false;
+				
+				switch (*src++)
+				{
+					case ',': break;
+					case ']': return true;
+					default:
+						fail("expected ',' or ']' after array element");
+						return false;
+				}
+			}
+			fail("unexpected end of array");
 			return false;
 		}
-	}
-
-	inline bool read_false(value& val)
-	{
-		char c[5];
-		is.read(c, 5);
-		if (!is.eof() && c[0] == 'f' && c[1] == 'a' && c[2] == 'l' && c[3] == 's' && c[4] == 'e')
+		
+		inline bool read_null(value& val)
 		{
-			val.boolean(false);
-			return true;
-		}
-		else
-		{
-			fail("expected a 'false' value");
-			return false;
-		}
-	}
-
-	inline bool read_number(value& val)
-	{
-		bool negate;
-		int c = is.peek();
-		if      (c == '-')             { negate = true;  is.ignore(); }
-		else if (c == '+')             { negate = false; is.ignore(); }
-		else if (c >= '0' && c <= '9') { negate = false; }
-		else { fail("invalid number value"); return false; }
-
-		number_t result = 0;
-		while (!is.eof() && is.peek() != '.' && is.peek() != 'e' && is.peek() != 'E' && is.peek() >= '0' && is.peek() <= '9')
-		{
-			result = result * 10 + (is.get() - '0');
-		}
-
-		if (!is.eof() && is.peek() == '.')
-		{
-			is.ignore();
-			number_t mult = 0.1f;
-			while (!is.eof() && is.peek() != 'e' && is.peek() != 'E' && is.peek() >= '0' && is.peek() <= '9')
+			if (memcmp(src, "null", 4) == 0)
 			{
-				result += (is.get() - '0') * mult;
-				mult *= 0.1f;
-			}
-		}
-
-		if (!is.eof() && (is.peek() == 'e' || is.peek() == 'E'))
-		{
-			is.ignore();
-			number_t exp_mult;
-			if      (is.peek() == '-') { exp_mult = 0.1f; is.ignore(); }
-			else if (is.peek() == '+') { exp_mult = 10;   is.ignore(); }
-			else                       { exp_mult = 10; }
-
-			std::size_t exp = 0;
-			while (!is.eof() && is.peek() >= '0' && is.peek() <= '9')
-			{
-				exp = exp * 10 + (is.get() - '0');
-			}
-
-			if (exp > 308) exp = 308;
-			while (exp-- != 0) result *= exp_mult;
-		}
-
-		val.number(negate ? -result : result);
-		return true;
-	}
-
-	inline bool read_string(value& val)
-	{
-		val.type(type_string);
-		return read_raw_string(val.string());
-	}
-
-	inline bool read_raw_string(std::string& result)
-	{
-		is.ignore();
-		while (!is.eof())
-		{
-			int c = is.peek();
-			if (c == '\\')
-			{
-				if (!read_escaped_symbol(result)) return false;
-			}
-			else if (c == '"')
-			{
-				is.ignore();
+				src += 4;
+				val.type(type_null);
 				return true;
 			}
 			else
 			{
-				result += c;
-				is.ignore();
-			}
-		}
-
-		fail("unexpected end of string");
-		return false;
-	}
-
-	inline bool read_escaped_symbol(std::string& to)
-	{
-		is.ignore();
-		if (!is.eof())
-		{
-		//	wchar_t uc;
-			switch (is.peek())
-			{
-			case '"':  to += '"';  break;
-			case '/':  to += '/';  break;
-			case '\\': to += '\\'; break;
-			case 'b': to += '\b';  break;
-			case 'f': to += '\f';  break;
-			case 'n': to += '\n';  break;
-			case 'r': to += '\r';  break;
-			case 't': to += '\t';  break;
-			case 'u':
-			// TODO: unicode support?
-			//	if (!read_unicode_char(uc)) return false;
-			//	to += uc;
-				break;
-
-			default:
-				fail("invalid escaped symbol");
+				fail("expected 'null'");
 				return false;
 			}
-			is.ignore();
+		}
+		
+		inline bool read_true(value& val)
+		{
+			if (memcmp(src, "true", 4) == 0)
+			{
+				src += 4;
+				val.boolean(true);
+				return true;
+			}
+			else
+			{
+				fail("expected 'true'");
+				return false;
+			}
+		}
+		
+		inline bool read_false(value& val)
+		{
+			if (memcmp(src, "false", 5) == 0)
+			{
+				src += 5;
+				val.boolean(false);
+				return true;
+			}
+			else
+			{
+				fail("expected 'false'");
+				return false;
+			}
+		}
+		
+		inline bool read_number(value& val)
+		{
+			bool negate;
+			auto c = *src;
+			if      (c == '-')             { negate = true;  ++src; }
+			else if (c == '+')             { negate = false; ++src; }
+			else if (c >= '0' && c <= '9') { negate = false; }
+			else { fail("invalid number value"); return false; }
+			
+			number_t result = 0;
+			while (*src != '\0' && *src != '.' && *src != 'e' && *src != 'E' && *src >= '0' && *src <= '9')
+			{
+				result = result * 10 + (*src - '0');
+				++src;
+			}
+			
+			if (*src != '\0' && *src == '.')
+			{
+				++src;
+				number_t mult = 0.1f;
+				while (*src != '\0' && *src != 'e' && *src != 'E' && *src >= '0' && *src <= '9')
+				{
+					result += (*src - '0') * mult;
+					mult *= 0.1f;
+					++src;
+				}
+			}
+			
+			if (*src != '\0' && (*src == 'e' || *src == 'E'))
+			{
+				++src;
+				number_t exp_mult;
+				if      (*src == '-') { exp_mult = 0.1f; ++src; }
+				else if (*src == '+') { exp_mult = 10;   ++src; }
+				else                  { exp_mult = 10; }
+				
+				std::size_t exp = 0;
+				while (*src != '\0' && *src >= '0' && *src <= '9')
+				{
+					exp = exp * 10 + (*src - '0');
+					++src;
+				}
+				
+				if (exp > 308) exp = 308;
+				while (exp-- != 0) result *= exp_mult;
+			}
+			
+			val.number(negate ? -result : result);
+			return true;
+		}
+		
+		inline bool read_string(value& val)
+		{
+			val.type(type_string);
+			return read_raw_string(val.string());
+		}
+		
+		inline bool read_raw_string(std::string& result)
+		{
+			string_buf.clear();
+			++src;
+			while (*src != '\0')
+			{
+				if (*src == '\\')
+				{
+					if (!read_escaped_symbol(string_buf)) return false;
+				}
+				else if (*src == '"')
+				{
+					++src;
+					result = string_buf;
+					return true;
+				}
+				else
+				{
+					string_buf += *src++;
+				}
+			}
+			
+			fail("unexpected end of string");
+			return false;
+		}
+		
+		inline bool read_escaped_symbol(std::string& to)
+		{
+			++src;
+			if (*src != '\0')
+			{
+				//	wchar_t uc;
+				switch (*src)
+				{
+					case '"':  to += '"';  break;
+					case '/':  to += '/';  break;
+					case '\\': to += '\\'; break;
+					case 'b': to += '\b';  break;
+					case 'f': to += '\f';  break;
+					case 'n': to += '\n';  break;
+					case 'r': to += '\r';  break;
+					case 't': to += '\t';  break;
+					case 'u':
+						// TODO: unicode support?
+						fail("unicode symbols not supported");
+						return false;
+						
+					default:
+						fail("invalid escaped symbol");
+						return false;
+				}
+				++src;
+			}
+			else
+			{
+				fail("unexpected end of escaped symbol");
+				return false;
+			}
+			return true;
+		}
+	};
+	
+	inline std::streamsize file_size(std::ifstream& file)
+	{
+		auto pos = file.tellg();
+		file.seekg(0, std::ios::end);
+		auto size = file.tellg();
+		file.seekg(0, std::ios::beg);
+		size -= file.tellg();
+		file.seekg(pos, std::ios::beg);
+		return size;
+	}
+	
+	inline bool load_text(char const* filename, std::string& dst)
+	{
+		std::ifstream ifs(filename);
+		if (ifs)
+		{
+			auto size = file_size(ifs);
+			if (size > 0)
+			{
+				dst.resize(size);
+				ifs.read(&*dst.begin(), size);
+				return true;
+			}
+			else
+			{
+				return false;
+			}
 		}
 		else
 		{
-			fail("unexpected end of escaped symbol");
 			return false;
 		}
-		return true;
 	}
-};
-
-inline bool from_file(char const* filename, value& val)
-{
-	std::ifstream ifs(filename, std::ios::binary);
-	if (ifs)
+	
+	inline bool from_file(char const* filename, value& val)
 	{
-		reader r(ifs);
-		return r.read(val);
+		std::string buf;
+		if (load_text(filename, buf))
+		{
+			reader r(buf);
+			return r.read(val);
+		}
+		else
+		{
+			return false;
+		}
 	}
-	else
+	
+	inline bool from_file(char const* filename, value& val, std::string& log)
 	{
-		return false;
+		std::string buf;
+		if (load_text(filename, buf))
+		{
+			reader r(buf);
+			bool ok = r.read(val);
+			if (!ok) log = r.get_log();
+			return ok;
+		}
+		else
+		{
+			log = "failed to load file '" + std::string(filename) + "'";
+			return false;
+		}
 	}
-}
-
-inline bool from_file(char const* filename, value& val, std::string& log)
-{
-	std::ifstream ifs(filename, std::ios::binary);
-	if (ifs)
+	
+	inline bool from_string(value& result, std::string const& str)
 	{
-		reader r(ifs);
-		bool b = r.read(val);
-		if (!b) log = r.get_log();
-		return b;
+		reader r(str);
+		return r.read(result);
 	}
-	else
+	
+	inline bool from_string(value& result, std::string const& str, std::string& log)
 	{
-		log = "file '" + std::string(filename) + "' was not found";
-		return false;
+		reader r(str);
+		bool ok = r.read(result);
+		if (!ok) log = r.get_log();
+		return ok;
 	}
-}
-
-inline bool from_string(value& result, std::string const& str, std::string& log)
-{
-	std::stringstream ss;
-	ss << str;
-	reader r(ss);
-	bool b = r.read(result);
-	if (!b) log = r.get_log();
-	return b;
-}
-
+	
 };
 
 #endif
