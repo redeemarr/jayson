@@ -1,7 +1,9 @@
 #ifndef JAYSON_H
 #define JAYSON_H
 
-// rev. 3
+// rev. 4
+
+#define JAYSON_UNICODE 1
 
 #ifndef _MSC_VER
 #define NOEXCEPT noexcept
@@ -30,11 +32,15 @@ namespace json
 	static type_t const type_array   = 'a';
 	static type_t const type_object  = 'o';
 	
-	typedef double                              number_t;
-	typedef bool                                boolean_t;
-	typedef std::string                         string_t;
-	typedef std::vector<value>                  array_t;
-	typedef std::unordered_map<string_t, value> object_t;
+	typedef double                                 number_t;
+	typedef bool                                   boolean_t;
+#if JAYSON_UNICODE == 1
+	typedef std::wstring                           string_t;
+#else
+	typedef std::string                            string_t;
+#endif
+	typedef std::vector<value>                     array_t;
+	typedef std::unordered_map<std::string, value> object_t;
 	
 	class value
 	{
@@ -51,7 +57,11 @@ namespace json
 		value(array_t const& v) : m_type(type_array)      { create(); *data.a = v; }
 		value(object_t const& v) : m_type(type_object)    { create(); *data.o = v; }
 		
+#if JAYSON_UNICODE == 1
+		value(wchar_t const* s) : m_type(type_string)     { create(); *data.s = s; }
+#else
 		value(char const* s) : m_type(type_string)        { create(); *data.s = s; }
+#endif
 		value(int n) : m_type(type_number)                { create();  data.n = static_cast<number_t>(n); }
 		value(unsigned int n) : m_type(type_number)       { create();  data.n = static_cast<number_t>(n); }
 		value(long n) : m_type(type_number)               { create();  data.n = static_cast<number_t>(n); }
@@ -258,21 +268,21 @@ namespace json
 		int     m_indents;
 		options m_options;
 		
-		void write_string(std::string const& str)
+		void write_string(string_t const& str)
 		{
 			for (auto c : str)
 			{
 				switch (c)
 				{
 					case '"':  m_os << "\\\""; break;
-						//	case '/':  m_os << "\\/";  break;
+				//	case '/':  m_os << "\\/";  break;
 					case '\\': m_os << "\\\\"; break;
 					case '\b': m_os << "\\b";  break;
 					case '\f': m_os << "\\f";  break;
 					case '\n': m_os << "\\n";  break;
 					case '\r': m_os << "\\r";  break;
 					case '\t': m_os << "\\t";  break;
-						//	case '\u': /* TODO */    break;
+				//	case '\u': /* TODO */    break;
 					default:
 						m_os << c;
 						break;
@@ -391,7 +401,6 @@ namespace json
 		
 		reader(std::string const& str) : m_str(str)
 		{
-			string_buf.reserve(64);
 		}
 		
 		bool read(value& result)
@@ -414,11 +423,8 @@ namespace json
 	private:
 		
 		std::string const& m_str;
-		
 		char const* src;
-		
 		std::string   log_str;
-		std::string   string_buf;
 		
 		reader(reader&);
 		reader& operator = (reader&);
@@ -479,8 +485,8 @@ namespace json
 				if (!skip_whitespaces()) return false;
 				if (*src == '"')
 				{
-					std::pair<string_t, value> pair;
-					read_raw_string(pair.first);
+					std::pair<std::string, value> pair;
+					read_ascii_string(pair.first);
 					
 					object_t& o = val.object();
 					auto it = o.find(pair.first);
@@ -646,25 +652,19 @@ namespace json
 			return read_raw_string(val.string());
 		}
 		
-		inline bool read_raw_string(std::string& result)
+		inline bool read_ascii_string(std::string& result)
 		{
-			string_buf.clear();
 			++src;
 			while (*src != '\0')
 			{
-				if (*src == '\\')
-				{
-					if (!read_escaped_symbol(string_buf)) return false;
-				}
-				else if (*src == '"')
+				if (*src == '"')
 				{
 					++src;
-					result = string_buf;
 					return true;
 				}
 				else
 				{
-					string_buf += *src++;
+					result += *src++;
 				}
 			}
 			
@@ -672,12 +672,35 @@ namespace json
 			return false;
 		}
 		
-		inline bool read_escaped_symbol(std::string& to)
+		inline bool read_raw_string(string_t& result)
+		{
+			++src;
+			while (*src != '\0')
+			{
+				if (*src == '\\')
+				{
+					if (!read_escaped_symbol(result)) return false;
+				}
+				else if (*src == '"')
+				{
+					++src;
+					return true;
+				}
+				else
+				{
+					result += *src++;
+				}
+			}
+			
+			fail("unexpected end of string");
+			return false;
+		}
+		
+		inline bool read_escaped_symbol(string_t& to)
 		{
 			++src;
 			if (*src != '\0')
 			{
-				//	wchar_t uc;
 				switch (*src)
 				{
 					case '"':  to += '"';  break;
@@ -689,9 +712,8 @@ namespace json
 					case 'r': to += '\r';  break;
 					case 't': to += '\t';  break;
 					case 'u':
-						// TODO: unicode support?
-						fail("unicode symbols not supported");
-						return false;
+						if (!read_unicode_character(to)) return false;
+						break;
 						
 					default:
 						fail("invalid escaped symbol");
@@ -705,6 +727,58 @@ namespace json
 				return false;
 			}
 			return true;
+		}
+		
+		inline bool read_unicode_character(string_t& to)
+		{
+			++src;
+			if (*src != '\0')
+			{
+				wchar_t wc = 0;
+				for (int i=0; i<4; ++i)
+				{
+					if (*src != '\0')
+					{
+						uint32_t c;
+						switch (src[i])
+						{
+							case '0': c = 0; break;
+							case '1': c = 1; break;
+							case '2': c = 2; break;
+							case '3': c = 3; break;
+							case '4': c = 4; break;
+							case '5': c = 5; break;
+							case '6': c = 6; break;
+							case '7': c = 7; break;
+							case '8': c = 8; break;
+							case '9': c = 9; break;
+							case 'a': case 'A': c = 10; break;
+							case 'b': case 'B': c = 11; break;
+							case 'c': case 'C': c = 12; break;
+							case 'd': case 'D': c = 13; break;
+							case 'e': case 'E': c = 14; break;
+							case 'f': case 'F': c = 15; break;
+							default:
+								fail("expected valid unicode hex character");
+								return false;
+						}
+						wc += c << ((3 - i) * 4);
+					}
+					else
+					{
+						fail("expected valid unicode hex character");
+						return false;
+					}
+				}
+				src += 3;
+				to += wc;
+				return true;
+			}
+			else
+			{
+				fail("expected valid unicode hex character");
+				return false;
+			}
 		}
 	};
 	
