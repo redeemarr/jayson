@@ -1,9 +1,9 @@
 #ifndef JAYSON_H
 #define JAYSON_H
 
-// rev. 4
+// rev. 5
 
-#define JAYSON_UNICODE 1
+//#define JAYSON_UNICODE 1
 
 #ifndef _MSC_VER
 #define NOEXCEPT noexcept
@@ -32,15 +32,18 @@ namespace json
 	static type_t const type_array   = 'a';
 	static type_t const type_object  = 'o';
 	
-	typedef double                                 number_t;
-	typedef bool                                   boolean_t;
 #if JAYSON_UNICODE == 1
-	typedef std::wstring                           string_t;
+	typedef std::wstring                        string_t;
+	typedef std::wostream                       ostream_t;
 #else
-	typedef std::string                            string_t;
+	typedef std::string                         string_t;
+	typedef std::ostream                        ostream_t;
 #endif
-	typedef std::vector<value>                     array_t;
-	typedef std::unordered_map<std::string, value> object_t;
+	
+	typedef double                              number_t;
+	typedef bool                                boolean_t;
+	typedef std::vector<value>                  array_t;
+	typedef std::unordered_map<string_t, value> object_t;
 	
 	class value
 	{
@@ -238,15 +241,19 @@ namespace json
 		struct options
 		{
 			bool formatted;
-			std::string tab_character;
+			string_t tab_character;
 			
 			options()
 			: formatted(true)
+#if JAYSON_UNICODE == 1
+			, tab_character(L"  ")
+#else
 			, tab_character("  ")
+#endif
 			{}
 		};
 		
-		writer(std::ostream& os)
+		writer(ostream_t& os)
 		: m_os(os)
 		{
 			m_os << std::setprecision(20);
@@ -261,12 +268,14 @@ namespace json
 		
 	private:
 		
-		writer(writer&);
-		writer& operator = (writer&);
+		writer(writer const&) = delete;
+		writer(writer&&) = delete;
+		writer& operator = (writer const&) = delete;
+		writer& operator = (writer&&) = delete;
 		
-		std::ostream& m_os;
-		int     m_indents;
-		options m_options;
+		ostream_t& m_os;
+		int        m_indents;
+		options    m_options;
 		
 		void write_string(string_t const& str)
 		{
@@ -290,7 +299,7 @@ namespace json
 			}
 		}
 		
-		std::ostream& write_value(value const& v)
+		ostream_t& write_value(value const& v)
 		{
 			switch (v.type())
 			{
@@ -382,14 +391,22 @@ namespace json
 	
 	inline void to_file(char const* filename, value const& v, writer::options const& options = writer::options())
 	{
+#if JAYSON_UNICODE == 1
+		std::wofstream ofs(filename, std::ios::binary);
+#else
 		std::ofstream ofs(filename, std::ios::binary);
+#endif
 		writer w(ofs);
 		w.write(v, options);
 	}
 	
-	inline std::string to_string(value const& v, writer::options const& options = writer::options())
+	inline string_t to_string(value const& v, writer::options const& options = writer::options())
 	{
+#if JAYSON_UNICODE == 1
+		std::wostringstream oss;
+#else
 		std::ostringstream oss;
+#endif
 		writer w(oss);
 		w.write(v, options);
 		return oss.str();
@@ -485,8 +502,8 @@ namespace json
 				if (!skip_whitespaces()) return false;
 				if (*src == '"')
 				{
-					std::pair<std::string, value> pair;
-					read_ascii_string(pair.first);
+					std::pair<string_t, value> pair;
+					read_raw_string(pair.first);
 					
 					object_t& o = val.object();
 					auto it = o.find(pair.first);
@@ -530,24 +547,27 @@ namespace json
 		{
 			val.type(type_array);
 			++src;
-			while (*src != '\0')
+			
+			array_t& arr = val.array();
+			while (true)
 			{
-				array_t& arr = val.array();
-				arr.emplace_back();
-				if (!read_value(arr.back())) return false;
 				if (!skip_whitespaces()) return false;
 				
-				switch (*src++)
+				if (*src == ',')
 				{
-					case ',': break;
-					case ']': return true;
-					default:
-						fail("expected ',' or ']' after array element");
-						return false;
+					++src;
+				}
+				else if (*src == ']')
+				{
+					++src;
+					return true;
+				}
+				else
+				{
+					arr.emplace_back();
+					if (!read_value(arr.back())) return false;
 				}
 			}
-			fail("unexpected end of array");
-			return false;
 		}
 		
 		inline bool read_null(value& val)
@@ -652,26 +672,6 @@ namespace json
 			return read_raw_string(val.string());
 		}
 		
-		inline bool read_ascii_string(std::string& result)
-		{
-			++src;
-			while (*src != '\0')
-			{
-				if (*src == '"')
-				{
-					++src;
-					return true;
-				}
-				else
-				{
-					result += *src++;
-				}
-			}
-			
-			fail("unexpected end of string");
-			return false;
-		}
-		
 		inline bool read_raw_string(string_t& result)
 		{
 			++src;
@@ -729,6 +729,31 @@ namespace json
 			return true;
 		}
 		
+		inline wchar_t hex_to_char(char hex)
+		{
+			switch (hex)
+			{
+				case '0': return 0;
+				case '1': return 1;
+				case '2': return 2;
+				case '3': return 3;
+				case '4': return 4;
+				case '5': return 5;
+				case '6': return 6;
+				case '7': return 7;
+				case '8': return 8;
+				case '9': return 9;
+				case 'a': case 'A': return 10;
+				case 'b': case 'B': return 11;
+				case 'c': case 'C': return 12;
+				case 'd': case 'D': return 13;
+				case 'e': case 'E': return 14;
+				case 'f': case 'F': return 15;
+				default:
+					return -1;
+			}
+		}
+		
 		inline bool read_unicode_character(string_t& to)
 		{
 			++src;
@@ -739,30 +764,16 @@ namespace json
 				{
 					if (*src != '\0')
 					{
-						uint32_t c;
-						switch (src[i])
+						wchar_t c = hex_to_char(src[i]);
+						if (c != -1)
 						{
-							case '0': c = 0; break;
-							case '1': c = 1; break;
-							case '2': c = 2; break;
-							case '3': c = 3; break;
-							case '4': c = 4; break;
-							case '5': c = 5; break;
-							case '6': c = 6; break;
-							case '7': c = 7; break;
-							case '8': c = 8; break;
-							case '9': c = 9; break;
-							case 'a': case 'A': c = 10; break;
-							case 'b': case 'B': c = 11; break;
-							case 'c': case 'C': c = 12; break;
-							case 'd': case 'D': c = 13; break;
-							case 'e': case 'E': c = 14; break;
-							case 'f': case 'F': c = 15; break;
-							default:
-								fail("expected valid unicode hex character");
-								return false;
+							wc += c << ((3 - i) * 4);
 						}
-						wc += c << ((3 - i) * 4);
+						else
+						{
+							fail("invalid unicode hex character");
+							return false;
+						}
 					}
 					else
 					{
