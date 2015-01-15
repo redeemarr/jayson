@@ -1,7 +1,7 @@
 #ifndef JAYSON_H
 #define JAYSON_H
 
-// rev. 5
+// rev. 6
 
 //#define JAYSON_UNICODE 1
 
@@ -276,11 +276,28 @@ namespace json
 		ostream_t& m_os;
 		int        m_indents;
 		options    m_options;
-		
+
 		void write_string(string_t const& str)
 		{
 			for (auto c : str)
 			{
+			#if JAYSON_UNICODE == 1
+				if (c > 255)
+				{
+					static char const sym[] = { '0', '1', '2', '3', '4', '5', '6', '7', '8', '9', 'a', 'b', 'c', 'd', 'e', 'f' };
+					
+					unsigned char* p = (unsigned char*)&c;
+					char a = sym[(p[1] >> 4) & 0x0f];
+					char b = sym[p[1] & 0x0f];
+					char c = sym[(p[0] >> 4) & 0x0f];
+					char d = sym[p[0] & 0x0f];
+					
+					m_os << "\\u" << a << b << c << d;
+					
+					continue;
+				}
+			#endif
+			
 				switch (c)
 				{
 					case '"':  m_os << "\\\""; break;
@@ -291,7 +308,6 @@ namespace json
 					case '\n': m_os << "\\n";  break;
 					case '\r': m_os << "\\r";  break;
 					case '\t': m_os << "\\t";  break;
-				//	case '\u': /* TODO */    break;
 					default:
 						m_os << c;
 						break;
@@ -441,7 +457,7 @@ namespace json
 		
 		std::string const& m_str;
 		char const* src;
-		std::string   log_str;
+		std::string log_str;
 		
 		reader(reader&);
 		reader& operator = (reader&);
