@@ -6,14 +6,14 @@
 static long g_allocs = 0;
 static long g_total_allocs = 0;
 
-void* tests::operator new(size_t size)
+void* operator new(size_t size)
 {
 	++g_allocs;
 	++g_total_allocs;
 	return malloc(size);
 }
 
-void tests::operator delete(void* ptr) noexcept
+void operator delete(void* ptr) noexcept
 {
 	--g_allocs;
 	free(ptr);
