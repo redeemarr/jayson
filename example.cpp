@@ -1,33 +1,32 @@
-jayson
-======
+#include <iostream>
+#include "jayson.h"
+#include "tests.h"
 
-Yet another C++ json library.
-It consists of one header file and supposed to be lightweight, easy to integrate and use.
-
-You can generate json data within code like this:
-
+int main(int argc, const char * argv[])
+{
+	// You can generate json data within code like this:
 	json::value number = 12.34;
 	json::value string = "string";
 	json::value array = { number, string };
 	
-...then convert it to string:
-
+	// ...then convert it to string:
 	std::string str = json::to_string(array);
 	
-...or write to file:
-
+	// ...or write to file:
 	json::to_file("test.json", array);
 
-...and then parse this file and read values:
-	
+	// ...and then parse this file and read values:
 	json::value result;
 	std::string errors;
 	if (json::from_file("test.json", result, &errors))
 	{
 		double number = result.get(0);
 		std::string string = result.get(1);
+		std::cout << number << ", " << string << std::endl;
 	}
 	else
 	{
 		std::cout << errors << std::endl;
 	}
+	return 0;
+}
