@@ -193,10 +193,18 @@ namespace json
 		operator float () const              { return type == 'n' ? data.n : 0; }
 		operator double () const             { return type == 'n' ? data.n : 0; }
 
-		bool operator == (char const* str) const
-		{
-			return type == 's' ? strcmp(data.s, str) == 0 : false;
-		}
+		bool operator == (char const* s) const        { return type == 's' ? strcmp(data.s, s) == 0 : false; }
+		bool operator == (bool b) const               { return type == 'b' ? data.b == b : false; }
+		bool operator == (std::string const& s) const { return *this == s.c_str(); }
+		bool operator == (unsigned short n) const     { return type == 'n' ? data.n == n : false; }
+		bool operator == (int n) const                { return type == 'n' ? data.n == n : false; }
+		bool operator == (unsigned int n) const       { return type == 'n' ? data.n == n : false; }
+		bool operator == (long n) const               { return type == 'n' ? data.n == n : false; }
+		bool operator == (unsigned long n) const      { return type == 'n' ? data.n == n : false; }
+		bool operator == (long long n) const          { return type == 'n' ? data.n == n : false; }
+		bool operator == (unsigned long long n) const { return type == 'n' ? data.n == n : false; }
+		bool operator == (float n) const              { return type == 'n' ? data.n == n : false; }
+		bool operator == (double n) const             { return type == 'n' ? data.n == n : false; }
 		
 		value& operator = (value const& v)
 		{
@@ -247,6 +255,7 @@ namespace json
 				this->~value(); new (this) value('o');
 			}
 			
+			// TODO: optimize
 			for (auto n = data.a.head; n; n = n->next)
 			{
 				if (strcmp(key, n->key) == 0) return n->val;
@@ -271,6 +280,7 @@ namespace json
 		{
 			if (type == 'a')
 			{
+				// TODO: optimize
 				std::size_t i = 0;
 				for (auto n = data.a.head; n; n = n->next)
 				{
