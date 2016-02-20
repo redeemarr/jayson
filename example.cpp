@@ -22,8 +22,8 @@ int main(int argc, const char * argv[])
 	std::string errors;
 	if (json::from_file("test.json", result, &errors))
 	{
-		double number = result.get(0);
-		std::string string = result.get(1);
+		double number = result[0];
+		std::string string = result[1];
 		std::cout << number << ", " << string << std::endl;
 	}
 	else

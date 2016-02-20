@@ -135,19 +135,19 @@ void tests::run()
 	arr.add("abc");
 	arr.add(true);
 	
-	std::cout << "0: " << arr.get(0).data.n << "\n";
-	std::cout << "1: " << arr.get(1).data.s << "\n";
-	std::cout << "2: " << arr.get(2).data.b << "\n";
+	std::cout << "0: " << arr[0].data.n << "\n";
+	std::cout << "1: " << arr[1].data.s << "\n";
+	std::cout << "2: " << arr[2].data.b << "\n";
 	
 	std::cout << "\n******* object *******\n";
 	json::value obj;
-	obj["a"] = 123;
-	obj["b"] = "abc";
-	obj["c"] = true;
+	obj("a") = 123;
+	obj("b") = "abc";
+	obj("c") = true;
 	
-	std::cout << "a: " << obj["a"].data.n << "\n";
-	std::cout << "b: " << obj["b"].data.s << "\n";
-	std::cout << "c: " << obj["c"].data.b << "\n";
+	std::cout << "a: " << obj("a").data.n << "\n";
+	std::cout << "b: " << obj("b").data.s << "\n";
+	std::cout << "c: " << obj("c").data.b << "\n";
 	}
 
 #if (TEST_LEAKS)

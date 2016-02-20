@@ -177,7 +177,7 @@ namespace json
 		value(float n)              : value('n') { data.n = n; }
 		value(double n)             : value('n') { data.n = n; }
 		
-		operator char const* () const { return type == 's' ? data.s : nullptr; }
+		operator char const* () const { return type == 's' ? data.s : ""; }
 		operator std::string () { return type == 's' && data.s ? std::string(data.s) : std::string(); }
 		operator std::string () const { return type == 's' && data.s ? std::string(data.s) : std::string(); }
 		operator bool () const { return type == 'b' ? data.b : false; }
@@ -211,32 +211,18 @@ namespace json
 			static value val;
 			return val;
 		}
-		
-		value& add(value const& v)
-		{
-			if (type != 'a')
-			{
-				this->~value(); new (this) value('a');
-			}
-			data.a.push()->val = v;
-			return *this;
-		}
 
-		value const& get(std::size_t index) const
+		std::size_t size() const
 		{
-			if (type == 'a')
+			std::size_t r = 0;
+			if (type == 'a' || type == 'o')
 			{
-				std::size_t i = 0;
-				for (auto n = data.a.head; n; n = n->next)
-				{
-					if (i++ == index) return n->val;
-				}
-				return empty_value();
+				for (auto n = data.a.head; n; n = n->next) ++r;
 			}
-			else return empty_value();
+			return r;
 		}
 		
-		value const& operator[] (char const* key) const
+		value const& operator () (char const* key) const
 		{
 			if (type == 'o')
 			{
@@ -249,7 +235,7 @@ namespace json
 			else return empty_value();
 		}
 		
-		value& operator[] (char const* key)
+		value& operator () (char const* key)
 		{
 			if (type != 'o')
 			{
@@ -264,6 +250,30 @@ namespace json
 			auto n = data.a.push();
 			n->key = new_string(key);
 			return n->val;
+		}
+
+		value& add(value const& v)
+		{
+			if (type != 'a')
+			{
+				this->~value(); new (this) value('a');
+			}
+			data.a.push()->val = v;
+			return *this;
+		}
+		
+		value const& operator [] (std::size_t index) const
+		{
+			if (type == 'a')
+			{
+				std::size_t i = 0;
+				for (auto n = data.a.head; n; n = n->next)
+				{
+					if (i++ == index) return n->val;
+				}
+				return empty_value();
+			}
+			else return empty_value();
 		}
 	};
 
@@ -748,9 +758,11 @@ namespace json
 			stream.seekg(0, std::ios::end);
 			auto sz = stream.tellg();
 			stream.seekg(0, std::ios::beg);
-			std::auto_ptr<char> text(new char[sz]);
-			stream.read(&*text, sz);
-			return from_string(&*text, result, errors);
+			char* text = new char[sz];
+			stream.read(text, sz);
+			bool status = from_string(text, result, errors);
+			delete[] text;
+			return status;
 		}
 		else
 		{
