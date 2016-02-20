@@ -1,0 +1,37 @@
+<?xml version="1.0" encoding="utf-8"?>
+<AutoVisualizer xmlns="http://schemas.microsoft.com/vstudio/debugger/natvis/2010">
+
+	<Type Name="json::value">
+		<DisplayString Condition="type==' '">null</DisplayString>
+		<DisplayString Condition="type=='b'">{data.b}</DisplayString>
+		<DisplayString Condition="type=='n'">{data.n}</DisplayString>
+		<DisplayString Condition="type=='s'">{data.s, s}</DisplayString>
+		<DisplayString Condition="type=='a'">array</DisplayString>
+		<DisplayString Condition="type=='o'">object</DisplayString>
+		<DisplayString>empty</DisplayString>
+
+		<Expand>
+			<LinkedListItems Condition="type=='a'">
+				<HeadPointer>data.a.head</HeadPointer>
+				<NextPointer>next</NextPointer>
+				<ValueNode>val</ValueNode>
+			</LinkedListItems>
+
+			<LinkedListItems Condition="type=='o'">
+				<HeadPointer>data.a.head</HeadPointer>
+				<NextPointer>next</NextPointer>
+				<ValueNode>this</ValueNode>
+			</LinkedListItems>
+		</Expand>
+	
+	</Type>
+
+	<Type Name="json::value::list&lt;json::value&gt;::node">
+		<DisplayString Condition="key">{key,s} : {val}</DisplayString>
+		<Expand>
+			<Item Name="key">key, s</Item>
+			<Item Name="val">val</Item>
+		</Expand>
+	</Type>
+
+</AutoVisualizer>

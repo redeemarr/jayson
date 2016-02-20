@@ -176,11 +176,22 @@ namespace json
 		value(unsigned long long n) : value('n') { data.n = n; }
 		value(float n)              : value('n') { data.n = n; }
 		value(double n)             : value('n') { data.n = n; }
+
+		operator bool () const
+		{
+			switch (type)
+			{
+			case 'b': return data.b;
+			case 's': return data.s != nullptr;
+			case 'n': return data.n != 0;
+			case 'a': case 'o': return true;
+			case ' ': default: return false;
+			}
+		}
 		
 		operator char const* () const { return type == 's' ? data.s : ""; }
 		operator std::string () { return type == 's' && data.s ? std::string(data.s) : std::string(); }
 		operator std::string () const { return type == 's' && data.s ? std::string(data.s) : std::string(); }
-		operator bool () const { return type == 'b' ? data.b : false; }
 		// TODO: char/uchar operators?
 		operator short () const              { return type == 'n' ? data.n : 0; }
 		operator unsigned short () const     { return type == 'n' ? data.n : 0; }
@@ -193,8 +204,8 @@ namespace json
 		operator float () const              { return type == 'n' ? data.n : 0; }
 		operator double () const             { return type == 'n' ? data.n : 0; }
 
+		bool operator == (bool b) const               { return static_cast<bool>(*this) == b; }
 		bool operator == (char const* s) const        { return type == 's' ? strcmp(data.s, s) == 0 : false; }
-		bool operator == (bool b) const               { return type == 'b' ? data.b == b : false; }
 		bool operator == (std::string const& s) const { return *this == s.c_str(); }
 		bool operator == (unsigned short n) const     { return type == 'n' ? data.n == n : false; }
 		bool operator == (int n) const                { return type == 'n' ? data.n == n : false; }
@@ -205,7 +216,68 @@ namespace json
 		bool operator == (unsigned long long n) const { return type == 'n' ? data.n == n : false; }
 		bool operator == (float n) const              { return type == 'n' ? data.n == n : false; }
 		bool operator == (double n) const             { return type == 'n' ? data.n == n : false; }
-		
+
+		bool operator != (bool b) const               { return !(*this == b); }
+		bool operator != (char const* s) const        { return !(*this == s); }
+		bool operator != (std::string const& s) const { return !(*this == s); }
+		bool operator != (unsigned short n) const     { return !(*this == n); }
+		bool operator != (int n) const                { return !(*this == n); }
+		bool operator != (unsigned int n) const       { return !(*this == n); }
+		bool operator != (long n) const               { return !(*this == n); }
+		bool operator != (unsigned long n) const      { return !(*this == n); }
+		bool operator != (long long n) const          { return !(*this == n); }
+		bool operator != (unsigned long long n) const { return !(*this == n); }
+		bool operator != (float n) const              { return !(*this == n); }
+		bool operator != (double n) const             { return !(*this == n); }
+
+		bool operator < (char const* s) const        { return type == 's' ? strcmp(data.s, s) < 0 : false; }
+		bool operator < (std::string const& s) const { return *this < s.c_str(); }
+		bool operator < (unsigned short n) const     { return type == 'n' ? data.n < n : false; }
+		bool operator < (int n) const                { return type == 'n' ? data.n < n : false; }
+		bool operator < (unsigned int n) const       { return type == 'n' ? data.n < n : false; }
+		bool operator < (long n) const               { return type == 'n' ? data.n < n : false; }
+		bool operator < (unsigned long n) const      { return type == 'n' ? data.n < n : false; }
+		bool operator < (long long n) const          { return type == 'n' ? data.n < n : false; }
+		bool operator < (unsigned long long n) const { return type == 'n' ? data.n < n : false; }
+		bool operator < (float n) const              { return type == 'n' ? data.n < n : false; }
+		bool operator < (double n) const             { return type == 'n' ? data.n < n : false; }
+
+		bool operator > (char const* s) const        { return type == 's' ? strcmp(data.s, s) > 0 : false; }
+		bool operator > (std::string const& s) const { return *this > s.c_str(); }
+		bool operator > (unsigned short n) const     { return type == 'n' ? data.n > n : false; }
+		bool operator > (int n) const                { return type == 'n' ? data.n > n : false; }
+		bool operator > (unsigned int n) const       { return type == 'n' ? data.n > n : false; }
+		bool operator > (long n) const               { return type == 'n' ? data.n > n : false; }
+		bool operator > (unsigned long n) const      { return type == 'n' ? data.n > n : false; }
+		bool operator > (long long n) const          { return type == 'n' ? data.n > n : false; }
+		bool operator > (unsigned long long n) const { return type == 'n' ? data.n > n : false; }
+		bool operator > (float n) const              { return type == 'n' ? data.n > n : false; }
+		bool operator > (double n) const             { return type == 'n' ? data.n > n : false; }
+
+		bool operator <= (char const* s) const        { return type == 's' ? strcmp(data.s, s) <= 0 : false; }
+		bool operator <= (std::string const& s) const { return *this <= s.c_str(); }
+		bool operator <= (unsigned short n) const     { return type == 'n' ? data.n <= n : false; }
+		bool operator <= (int n) const                { return type == 'n' ? data.n <= n : false; }
+		bool operator <= (unsigned int n) const       { return type == 'n' ? data.n <= n : false; }
+		bool operator <= (long n) const               { return type == 'n' ? data.n <= n : false; }
+		bool operator <= (unsigned long n) const      { return type == 'n' ? data.n <= n : false; }
+		bool operator <= (long long n) const          { return type == 'n' ? data.n <= n : false; }
+		bool operator <= (unsigned long long n) const { return type == 'n' ? data.n <= n : false; }
+		bool operator <= (float n) const              { return type == 'n' ? data.n <= n : false; }
+		bool operator <= (double n) const             { return type == 'n' ? data.n <= n : false; }
+
+		bool operator >= (char const* s) const        { return type == 's' ? strcmp(data.s, s) >= 0 : false; }
+		bool operator >= (std::string const& s) const { return *this >= s.c_str(); }
+		bool operator >= (unsigned short n) const     { return type == 'n' ? data.n >= n : false; }
+		bool operator >= (int n) const                { return type == 'n' ? data.n >= n : false; }
+		bool operator >= (unsigned int n) const       { return type == 'n' ? data.n >= n : false; }
+		bool operator >= (long n) const               { return type == 'n' ? data.n >= n : false; }
+		bool operator >= (unsigned long n) const      { return type == 'n' ? data.n >= n : false; }
+		bool operator >= (long long n) const          { return type == 'n' ? data.n >= n : false; }
+		bool operator >= (unsigned long long n) const { return type == 'n' ? data.n >= n : false; }
+		bool operator >= (float n) const              { return type == 'n' ? data.n >= n : false; }
+		bool operator >= (double n) const             { return type == 'n' ? data.n >= n : false; }
+
 		value& operator = (value const& v)
 		{
 			this->~value(); new (this) value(v);
