@@ -192,6 +192,11 @@ namespace json
 		operator unsigned long long () const { return type == 'n' ? data.n : 0; }
 		operator float () const              { return type == 'n' ? data.n : 0; }
 		operator double () const             { return type == 'n' ? data.n : 0; }
+
+		bool operator == (char const* str) const
+		{
+			return type == 's' ? strcmp(data.s, str) == 0 : false;
+		}
 		
 		value& operator = (value const& v)
 		{
