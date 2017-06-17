@@ -155,7 +155,6 @@ public:
 	{
 		if (type == type_string || type == type_array || type == type_object)
 		{
-		//	printf("~value() [%c] %d\n", type, ++deallocs[0]);
 			switch (type)
 			{
 				case type_string: delete data.s; break;
@@ -259,7 +258,6 @@ private:
 
 	value(type_t t) : type(t)
 	{
-	//	printf("value() [%c]\n", type);
 		switch (type)
 		{
 			case type_string: data.s = new string_t(); break;
@@ -279,7 +277,6 @@ private:
 	}
 
 	// MARK: parser
-
 	class reader
 	{
 	public:
@@ -572,7 +569,6 @@ private:
 	};
 
 	// MARK: serializer
-
 	class writer
 	{
 	public:
@@ -752,7 +748,6 @@ template <> inline bool value::as<bool>() const
 }
 
 // MARK: helpers
-
 inline std::ostream& operator << (std::ostream& ss, value const& val)
 {
 	switch (val.type)
