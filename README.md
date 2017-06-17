@@ -12,19 +12,19 @@ You can generate json data within your code like this:
 	json::value object;
 	object("key") = array;
 ```	
-...then convert it to string:
+...then serialize it to string:
 ```C++
-	std::string str = json::to_string(object);
+	std::string str = object.serialize();
 ```	
-...or write to file:
+...or write it to a file:
 ```C++
-	json::to_file("test.json", object);
+	object.serialize("test.json");
 ```
 ...and then parse this file and read values:
 ```C++	
 	json::value result;
 	std::string errors;
-	if (json::from_file("test.json", result, &errors))
+	if (result.parse_file("test.json", errors))
 	{
 		auto const& array = result("key");
 		double number = array[0];
@@ -37,11 +37,7 @@ You can generate json data within your code like this:
 	}
 ```
 
-Also included MSVC natvis file for convenient debugging.
-This file should be placed in '/Documents/Visual Studio 2013/Visualizers'. After that you'll be able to see nice looking json values in debugger auto/watch panel.
-
 Known limitations and pitfalls:
 - weird things may happen due to multiple type-cast operators. be careful
-- implicit cast from json::value to std::string doesn't work with MSVC compiler. workaround: explicit cast to 'char const*' first
-- highly unoptimized (yet) object/array access
-- intended to work with C++14 compilers only
+- implicit cast from json::value to std::string using assignment operator won't work. workaround: explicitly cast using value.as<std::string>()
+- intended to work with C++11 compilers only

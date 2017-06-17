@@ -34,7 +34,7 @@ void print_padded(std::string const& name, int width)
 	for (int i=0; i<spaces; ++i) std::cout << ' ';
 }
 
-template <typename T> void compare_check(T const& a, T const& b)
+template <typename T, typename U> void compare_check(T const& a, U const& b)
 {
 	std::ostringstream oss;
 	oss << a;
@@ -52,15 +52,27 @@ template <typename T> void compare_check(T const& a, T const& b)
 	}
 }
 
+void compare_check(char const* a, std::string* b)
+{
+	return compare_check(a, *b);
+}
+
+void compare_check(std::string const& a, std::string* b)
+{
+	return compare_check(a, *b);
+}
+
 void tests::run()
 {
+	std::cout << "sizeof(json::value) = " << sizeof(json::value) << " bytes" << std::endl << std::endl;
+
 	std::cout << "**** constructors ****\n";
 #define CONSTRUCT(TYPE, VALUE, FIELD) \
 { \
 	TYPE var = VALUE; \
 	json::value val(var); \
 	print_padded(#TYPE, 20); \
-	compare_check<TYPE>(var, val.data.FIELD); \
+	compare_check(var, val.data.FIELD); \
 	std::cout << std::endl; \
 }
 	CONSTRUCT(short,              -123,     n);
@@ -84,7 +96,7 @@ void tests::run()
 	json::value val; \
 	val = var; \
 	print_padded(#TYPE, 20); \
-	compare_check<TYPE>(var, val.data.FIELD); \
+	compare_check(var, val.data.FIELD); \
 	std::cout << std::endl; \
 }
 	ASSIGN(short,              -123,     n);
@@ -108,7 +120,7 @@ void tests::run()
 	json::value val(var); \
 	TYPE var2 = val; \
 	print_padded(#TYPE, 20); \
-	compare_check<TYPE>(var, var2); \
+	compare_check(var, var2); \
 	std::cout << std::endl; \
 }
 	TYPE_CAST(short,              -123,     n);
@@ -152,10 +164,7 @@ void tests::run()
 	std::cout << "\n";
 
 	TYPE_COMPARE_ALL(==);
-	TYPE_COMPARE_ALL(<);
-	TYPE_COMPARE_ALL(>);
-	TYPE_COMPARE_ALL(>=);
-	TYPE_COMPARE_ALL(>=);
+	TYPE_COMPARE_ALL(!=);
 
 	std::cout << "\n****** bool comparison *****\n";
 #define BOOL_COMPARE(TYPE, VALUE) \
@@ -183,13 +192,13 @@ void tests::run()
 	
 	std::cout << "\n******** array *******\n";
 	json::value arr;
-	arr.add(123);
-	arr.add("abc");
-	arr.add(true);
+	arr.append(123);
+	arr.append("abc");
+	arr.append(true);
 	
-	std::cout << "0: " << arr[0].data.n << "\n";
-	std::cout << "1: " << arr[1].data.s << "\n";
-	std::cout << "2: " << arr[2].data.b << "\n";
+	std::cout << "0: " << arr[0] << "\n";
+	std::cout << "1: " << arr[1] << "\n";
+	std::cout << "2: " << arr[2] << "\n";
 	
 	std::cout << "\n******* object *******\n";
 	json::value obj;
@@ -197,9 +206,9 @@ void tests::run()
 	obj("b") = "abc";
 	obj("c") = true;
 	
-	std::cout << "a: " << obj("a").data.n << "\n";
-	std::cout << "b: " << obj("b").data.s << "\n";
-	std::cout << "c: " << obj("c").data.b << "\n";
+	std::cout << "a: " << obj("a") << "\n";
+	std::cout << "b: " << obj("b") << "\n";
+	std::cout << "c: " << obj("c") << "\n";
 
 #if (TEST_LEAKS)
 	std::cout << "\n******* memory *******\n";
@@ -207,6 +216,7 @@ void tests::run()
 	else std::cout << "no leaks";
 	std::cout << ", " << g_total_allocs << " total allocations\n";
 #endif
+
 }
 
 }

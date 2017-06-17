@@ -2,7 +2,7 @@
 #include "jayson.h"
 #include "tests.h"
 
-int main(int argc, const char * argv[])
+int main(int argc, const char* argv[])
 {
 //	json::tests::run(); return 0;
 
@@ -13,16 +13,16 @@ int main(int argc, const char * argv[])
 	json::value object;
 	object("key") = array;
 	
-	// ...then convert it to string:
-	std::string str = json::to_string(object);
+	// ...then serialize it to string:
+	std::string str = object.serialize();
 	
 	// ...or write to file:
-	json::to_file("test.json", object);
+	object.serialize("test.json");
 
 	// ...and then parse this file and read values:
 	json::value result;
 	std::string errors;
-	if (json::from_file("test.json", result, &errors))
+	if (result.parse_file("test.json", errors))
 	{
 		auto const& array = result("key");
 		double number = array[0];
@@ -33,5 +33,6 @@ int main(int argc, const char * argv[])
 	{
 		std::cout << errors << std::endl;
 	}
+
 	return 0;
 }

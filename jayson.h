@@ -7,368 +7,300 @@
 #endif
 
 #include <string>
+#include <vector>
+#include <unordered_map>
 #include <sstream>
 #include <fstream>
 #include <iomanip>
 
 namespace json
 {
-	class value
+
+struct serialize_options
+{
+	bool        pretty_print;
+	std::string tab_character;
+
+	serialize_options(bool pretty_print=true, std::string const& tab_character="  ")
+	: pretty_print(pretty_print)
+	, tab_character(tab_character)
+	{}
+};
+
+class value
+{
+	friend class tests; // FIXME: get rid
+	friend std::ostream& operator << (std::ostream&, value const&);
+
+public:
+
+	bool parse_string(char const* str) { reader r; return r.parse_string(str, *this, nullptr); }
+	bool parse_string(char const* str, std::string& errors) { reader r; return r.parse_string(str, *this, &errors); }
+	bool parse_file(char const* filename) { reader r; return r.parse_file(filename, *this, nullptr); }
+	bool parse_file(char const* filename, std::string& errors) { reader r; return r.parse_file(filename, *this, &errors); }
+
+	std::string serialize(serialize_options const& options = serialize_options()) const
+	{
+		std::ostringstream oss;
+		writer w(oss);
+		w.write(*this, options);
+		return oss.str();
+	}
+
+	bool serialize(char const* filename, serialize_options const& options = serialize_options()) const
+	{
+		std::ofstream ofs(filename, std::ios::binary);
+		if (ofs)
+		{
+			writer w(ofs);
+			w.write(*this, options);
+			return true;
+		}
+		else
+		{
+			return false;
+		}
+	}
+
+private:
+
+	typedef std::initializer_list<value> ilist_t;
+	typedef std::string string_t;
+	typedef std::vector<value> array_t;
+
+	enum type_t
+	{
+		type_null   = ' ',
+		type_bool   = 'b',
+		type_number = 'n',
+		type_string = 's',
+		type_array  = 'a',
+		type_object = 'o'
+	};
+	
+	class object_t
 	{
 	private:
 	
-		template <typename T> struct list
-		{
-			struct node
-			{
-				node* next;
-				char* key;
-				T     val;
-			};
+		typedef std::pair<std::string const*, value> pair_t;
+		typedef std::vector<pair_t> values_t;
+		typedef std::unordered_map<std::string, std::size_t> map_t;
+	
+		values_t values;
+		map_t    map;
 		
-			node* head;
-			node* tail;
-
-			node* push()
-			{
-				node* n = new node();
-				n->next = nullptr;
-				n->key = nullptr;
-				
-				if (!tail)
-				{
-					head = tail = n;
-				}
-				else
-				{
-					tail->next = n;
-					tail = n;
-				}
-				return n;
-			}
-		};
-		
-		typedef char type_t;
-		typedef list<value> list_t;
-
-		union
-		{
-			double n;
-			bool   b;
-			char*  s;
-			list_t a;
-		} data;
-		type_t type;
-		
-		value(type_t type) : type(type)
-		{
-			switch (type)
-			{
-			case 's':
-				data.s = nullptr;
-				break;
-				
-			case 'a': case 'o':
-				data.a.head = data.a.tail = nullptr;
-				break;
-				
-			default:
-				break;
-			}
-		}
-		
-		char* new_string(char const* s)
-		{
-			if (s)
-			{
-				size_t len = strlen(s);
-				char* r = new char[len + 1];
-				memcpy(r, s, len + 1);
-				return r;
-			}
-			else return nullptr;
-		}
-
-		friend class reader;
-		friend class writer;
-		friend class tests;
-
 	public:
 		
-		~value()
+		void remove(char const* key)
 		{
-			switch (type)
+			auto it = map.find(key);
+			if (it != map.end())
 			{
-			case 's':
-				delete[] data.s;
-				break;
-
-			case 'a': case 'o':
-				auto head = data.a.head;
-				while (head)
+				std::size_t index = it->second;
+				for (auto& pair : map)
 				{
-					auto next = head->next;
-					delete[] head->key;
-					delete head;
-					head = next;
+					if (pair.second > index) --pair.second;
 				}
-				break;
+				values.erase(values.begin() + index);
+				map.erase(it);
 			}
-			type = 0;
+		}
+		
+		bool empty() const { return values.empty(); }
+		std::size_t size() const { return values.size(); }
+		
+		pair_t const& at(std::size_t index) const
+		{
+			return values[index];
 		}
 
-		value() : value(' ') {}
-		
-		value(value const& v) : value(v.type)
+		value const& get(std::string const& key) const
 		{
-			switch (type)
+			auto it = map.find(key);
+			return it != map.end() ? values[it->second].second : value::null();
+		}
+
+		value& get(std::string const& key)
+		{
+			auto it = map.find(key);
+			if (it != map.end())
 			{
-				case 's':
-					data.s = new_string(v.data.s);
-					break;
-					
-				case 'a': case 'o':
-					for (auto n = v.data.a.head; n; n = n->next)
-					{
-						auto nn = data.a.push();
-						nn->key = new_string(n->key);
-						nn->val = n->val;
-					}
-					break;
-					
-				case ' ':
-					break;
-					
-				default:
-					data = v.data;
-					break;
+				return values[it->second].second;
 			}
-		}
-		
-		value(value&& v) NOEXCEPT : value(' ')
-		{
-			std::swap(type, v.type);
-			std::swap(data, v.data);
-		}
-		
-		value(std::initializer_list<value> const& list) : value('a')
-		{
-			// TODO: preallocate?
-			for (value const& val : list)
+			else
 			{
-				auto node = data.a.push();
-				node->key = nullptr;
-				node->val = val; // XXX: copying
+				auto rec = map.emplace(key, values.size()).first;
+				values.push_back(std::make_pair(&rec->first, value()));
+				return values.back().second;
 			}
-		}
-		
-		value(char const* v) : value('s')        { data.s = new_string(v); }
-		value(std::string const& v) : value('s') { data.s = new_string(v.c_str()); }
-		value(bool v) : value('b') { data.b = v; }
-		// TODO: char/uchar constructors?
-		value(short n)              : value('n') { data.n = n; }
-		value(unsigned short n)     : value('n') { data.n = n; }
-		value(int n)                : value('n') { data.n = n; }
-		value(unsigned int n)       : value('n') { data.n = n; }
-		value(long n)               : value('n') { data.n = n; }
-		value(unsigned long n)      : value('n') { data.n = n; }
-		value(long long n)          : value('n') { data.n = n; }
-		value(unsigned long long n) : value('n') { data.n = n; }
-		value(float n)              : value('n') { data.n = n; }
-		value(double n)             : value('n') { data.n = n; }
-
-		operator bool () const
-		{
-			switch (type)
-			{
-			case 'b': return data.b;
-			case 's': return data.s != nullptr;
-			case 'n': return data.n != 0;
-			case 'a': case 'o': return true;
-			case ' ': default: return false;
-			}
-		}
-		
-		operator char const* () const { return type == 's' ? data.s : ""; }
-		operator std::string () { return type == 's' && data.s ? std::string(data.s) : std::string(); }
-		operator std::string () const { return type == 's' && data.s ? std::string(data.s) : std::string(); }
-		// TODO: char/uchar operators?
-		operator short () const              { return type == 'n' ? data.n : 0; }
-		operator unsigned short () const     { return type == 'n' ? data.n : 0; }
-		operator int () const                { return type == 'n' ? data.n : 0; }
-		operator unsigned int () const       { return type == 'n' ? data.n : 0; }
-		operator long () const               { return type == 'n' ? data.n : 0; }
-		operator unsigned long () const      { return type == 'n' ? data.n : 0; }
-		operator long long () const          { return type == 'n' ? data.n : 0; }
-		operator unsigned long long () const { return type == 'n' ? data.n : 0; }
-		operator float () const              { return type == 'n' ? data.n : 0; }
-		operator double () const             { return type == 'n' ? data.n : 0; }
-
-		bool operator == (bool b) const               { return static_cast<bool>(*this) == b; }
-		bool operator == (char const* s) const        { return type == 's' ? strcmp(data.s, s) == 0 : false; }
-		bool operator == (std::string const& s) const { return *this == s.c_str(); }
-		bool operator == (unsigned short n) const     { return type == 'n' ? data.n == n : false; }
-		bool operator == (int n) const                { return type == 'n' ? data.n == n : false; }
-		bool operator == (unsigned int n) const       { return type == 'n' ? data.n == n : false; }
-		bool operator == (long n) const               { return type == 'n' ? data.n == n : false; }
-		bool operator == (unsigned long n) const      { return type == 'n' ? data.n == n : false; }
-		bool operator == (long long n) const          { return type == 'n' ? data.n == n : false; }
-		bool operator == (unsigned long long n) const { return type == 'n' ? data.n == n : false; }
-		bool operator == (float n) const              { return type == 'n' ? data.n == n : false; }
-		bool operator == (double n) const             { return type == 'n' ? data.n == n : false; }
-
-		bool operator != (bool b) const               { return !(*this == b); }
-		bool operator != (char const* s) const        { return !(*this == s); }
-		bool operator != (std::string const& s) const { return !(*this == s); }
-		bool operator != (unsigned short n) const     { return !(*this == n); }
-		bool operator != (int n) const                { return !(*this == n); }
-		bool operator != (unsigned int n) const       { return !(*this == n); }
-		bool operator != (long n) const               { return !(*this == n); }
-		bool operator != (unsigned long n) const      { return !(*this == n); }
-		bool operator != (long long n) const          { return !(*this == n); }
-		bool operator != (unsigned long long n) const { return !(*this == n); }
-		bool operator != (float n) const              { return !(*this == n); }
-		bool operator != (double n) const             { return !(*this == n); }
-
-		bool operator < (char const* s) const        { return type == 's' ? strcmp(data.s, s) < 0 : false; }
-		bool operator < (std::string const& s) const { return *this < s.c_str(); }
-		bool operator < (unsigned short n) const     { return type == 'n' ? data.n < n : false; }
-		bool operator < (int n) const                { return type == 'n' ? data.n < n : false; }
-		bool operator < (unsigned int n) const       { return type == 'n' ? data.n < n : false; }
-		bool operator < (long n) const               { return type == 'n' ? data.n < n : false; }
-		bool operator < (unsigned long n) const      { return type == 'n' ? data.n < n : false; }
-		bool operator < (long long n) const          { return type == 'n' ? data.n < n : false; }
-		bool operator < (unsigned long long n) const { return type == 'n' ? data.n < n : false; }
-		bool operator < (float n) const              { return type == 'n' ? data.n < n : false; }
-		bool operator < (double n) const             { return type == 'n' ? data.n < n : false; }
-
-		bool operator > (char const* s) const        { return type == 's' ? strcmp(data.s, s) > 0 : false; }
-		bool operator > (std::string const& s) const { return *this > s.c_str(); }
-		bool operator > (unsigned short n) const     { return type == 'n' ? data.n > n : false; }
-		bool operator > (int n) const                { return type == 'n' ? data.n > n : false; }
-		bool operator > (unsigned int n) const       { return type == 'n' ? data.n > n : false; }
-		bool operator > (long n) const               { return type == 'n' ? data.n > n : false; }
-		bool operator > (unsigned long n) const      { return type == 'n' ? data.n > n : false; }
-		bool operator > (long long n) const          { return type == 'n' ? data.n > n : false; }
-		bool operator > (unsigned long long n) const { return type == 'n' ? data.n > n : false; }
-		bool operator > (float n) const              { return type == 'n' ? data.n > n : false; }
-		bool operator > (double n) const             { return type == 'n' ? data.n > n : false; }
-
-		bool operator <= (char const* s) const        { return type == 's' ? strcmp(data.s, s) <= 0 : false; }
-		bool operator <= (std::string const& s) const { return *this <= s.c_str(); }
-		bool operator <= (unsigned short n) const     { return type == 'n' ? data.n <= n : false; }
-		bool operator <= (int n) const                { return type == 'n' ? data.n <= n : false; }
-		bool operator <= (unsigned int n) const       { return type == 'n' ? data.n <= n : false; }
-		bool operator <= (long n) const               { return type == 'n' ? data.n <= n : false; }
-		bool operator <= (unsigned long n) const      { return type == 'n' ? data.n <= n : false; }
-		bool operator <= (long long n) const          { return type == 'n' ? data.n <= n : false; }
-		bool operator <= (unsigned long long n) const { return type == 'n' ? data.n <= n : false; }
-		bool operator <= (float n) const              { return type == 'n' ? data.n <= n : false; }
-		bool operator <= (double n) const             { return type == 'n' ? data.n <= n : false; }
-
-		bool operator >= (char const* s) const        { return type == 's' ? strcmp(data.s, s) >= 0 : false; }
-		bool operator >= (std::string const& s) const { return *this >= s.c_str(); }
-		bool operator >= (unsigned short n) const     { return type == 'n' ? data.n >= n : false; }
-		bool operator >= (int n) const                { return type == 'n' ? data.n >= n : false; }
-		bool operator >= (unsigned int n) const       { return type == 'n' ? data.n >= n : false; }
-		bool operator >= (long n) const               { return type == 'n' ? data.n >= n : false; }
-		bool operator >= (unsigned long n) const      { return type == 'n' ? data.n >= n : false; }
-		bool operator >= (long long n) const          { return type == 'n' ? data.n >= n : false; }
-		bool operator >= (unsigned long long n) const { return type == 'n' ? data.n >= n : false; }
-		bool operator >= (float n) const              { return type == 'n' ? data.n >= n : false; }
-		bool operator >= (double n) const             { return type == 'n' ? data.n >= n : false; }
-
-		value& operator = (value const& v)
-		{
-			this->~value(); new (this) value(v);
-			return *this;
-		}
-		
-		value& operator = (value&& v)
-		{
-			std::swap(type, v.type);
-			std::swap(data, v.data);
-			return *this;
-		}
-		
-		value const& empty_value() const
-		{
-			static value val;
-			return val;
-		}
-
-		std::size_t size() const
-		{
-			std::size_t r = 0;
-			if (type == 'a' || type == 'o')
-			{
-				for (auto n = data.a.head; n; n = n->next) ++r;
-			}
-			return r;
-		}
-		
-		value const& operator () (char const* key) const
-		{
-			if (type == 'o')
-			{
-				for (auto n = data.a.head; n; n = n->next)
-				{
-					if (strcmp(key, n->key) == 0) return n->val;
-				}
-				return empty_value();
-			}
-			else return empty_value();
-		}
-		
-		value& operator () (char const* key)
-		{
-			if (type != 'o')
-			{
-				this->~value(); new (this) value('o');
-			}
-			
-			// TODO: optimize
-			for (auto n = data.a.head; n; n = n->next)
-			{
-				if (strcmp(key, n->key) == 0) return n->val;
-			}
-			
-			auto n = data.a.push();
-			n->key = new_string(key);
-			return n->val;
-		}
-
-		value& add(value const& v)
-		{
-			if (type != 'a')
-			{
-				this->~value(); new (this) value('a');
-			}
-			data.a.push()->val = v;
-			return *this;
-		}
-		
-		value const& operator [] (std::size_t index) const
-		{
-			if (type == 'a')
-			{
-				// TODO: optimize
-				std::size_t i = 0;
-				for (auto n = data.a.head; n; n = n->next)
-				{
-					if (i++ == index) return n->val;
-				}
-				return empty_value();
-			}
-			else return empty_value();
 		}
 	};
+
+	union
+	{
+		bool      b;
+		double    n;
+		string_t* s;
+		array_t*  a;
+		object_t* o;
+	} data;
+	
+	type_t type;
+
+public:
+	
+	static value const& null() { static value val; return val; }
+	
+	~value()
+	{
+		if (type == type_string || type == type_array || type == type_object)
+		{
+		//	printf("~value() [%c] %d\n", type, ++deallocs[0]);
+			switch (type)
+			{
+				case type_string: delete data.s; break;
+				case type_array:  delete data.a; break;
+				case type_object: delete data.o; break;
+				case type_null:
+				case type_bool:
+				case type_number:;
+			}
+		}
+	}
+
+	// MARK: constructors
+	value()                     : value(type_null)   {}
+	value(value const& v)       : value(type_null)   { *this = v; }
+	value(value&& v) NOEXCEPT   : value(type_null)   { std::swap(type, v.type), std::swap(data, v.data); }
+	value(bool v)               : value(type_bool)   {  data.b = v; }
+	value(char const* v)        : value(type_string) { *data.s = v; }
+	value(std::string const& v) : value(type_string) { *data.s = v; }
+	value(ilist_t const& list)  : value(type_array)  { *data.a = list; }
+	value(ilist_t&& list)       : value(type_array)  { *data.a = list; }
+	template <typename T> value(T const& t) : value(type_number) { data.n = t; }
+
+	// MARK: assignment operators
+	value& operator = (value const& v)
+	{
+		check_type(v.type);
+		switch (type)
+		{
+			case type_bool:    data.b =  v.data.b; break;
+			case type_number:  data.n =  v.data.n; break;
+			case type_string: *data.s = *v.data.s; break;
+			case type_array:  *data.a = *v.data.a; break;
+			case type_object: *data.o = *v.data.o; break;
+			case type_null:;
+		}
+		return *this;
+	}
+
+	value& operator = (value&& v)                 { std::swap(type, v.type); std::swap(data, v.data); return *this; }
+	value& operator = (ilist_t const& list)       { check_type(type_array);  *data.a = list; return *this; }
+	value& operator = (bool b)                    { check_type(type_bool);    data.b = b;    return *this; }
+	value& operator = (char const* str)           { check_type(type_string); *data.s = str;  return *this; }
+	value& operator = (std::string const& str)    { check_type(type_string); *data.s = str;  return *this; }
+	template <typename T> value& operator = (T n) { check_type(type_number);  data.n = n;    return *this; }
+
+	// MARK: type conversions
+	template <typename T> T as() const { return type == type_number ? data.n : 0; }
+	template <typename T> operator T () const { return as<T>(); }
+	
+	// MARK: comparison operators
+	bool operator == (char const* s)        const { return (type == type_string && s) ? *data.s == s : false; }
+	bool operator == (std::string const& s) const { return  type == type_string       ? *data.s == s : false; }
+	
+	template <typename T> bool operator == (T const& v) const { return static_cast<T>(*this) == v; }
+	template <typename T> bool operator != (T const& v) const { return !(*this == v); }
+
+	std::size_t size() const
+	{
+		if      (type == type_array)  return data.a->size();
+		else if (type == type_object) return data.o->size();
+		return 0;
+	}
+
+	// MARK: array access
+	value& append(value const& v = value())
+	{
+		check_type(type_array);
+		data.a->emplace_back(v);
+		return data.a->back();
+	}
+
+	value& append(value&& v)
+	{
+		check_type(type_array);
+		data.a->emplace_back(v);
+		return data.a->back();
+	}
+
+	value const& operator [] (std::size_t index) const
+	{
+		if (type == type_array && data.a && index < data.a->size()) return (*data.a)[index];
+		else return null();
+	}
+
+	value& operator [] (std::size_t index)
+	{
+		check_type(type_array);
+		if (index >= data.a->size()) data.a->resize(index + 1);
+		return (*data.a)[index];
+	}
+	
+	// MARK: object access
+	value const& operator () (std::string const& key) const { return type == type_object ? data.o->get(key) : null(); }
+	value&       operator () (std::string const& key)       { check_type(type_object); return data.o->get(key); }
+	
+	void remove(char const* key) { if (type == type_object) data.o->remove(key); }
+	void remove(std::string const& key) { remove(key.c_str()); }
+	
+private:
+
+	value(type_t t) : type(t)
+	{
+	//	printf("value() [%c]\n", type);
+		switch (type)
+		{
+			case type_string: data.s = new string_t(); break;
+			case type_array:  data.a = new array_t();  break;
+			case type_object: data.o = new object_t(); break;
+			default:;
+		}
+	}
+		
+	void check_type(type_t t)
+	{
+		if (type != t)
+		{
+			this->~value();
+			new (this) value(t);
+		}
+	}
+
+	// MARK: parser
 
 	class reader
 	{
 	public:
+	
+		bool parse_file(char const* filename, value& result, std::string* errors)
+		{
+			std::ifstream stream(filename);
+			if (stream)
+			{
+				std::stringstream ss;
+				ss << stream.rdbuf();
+				return parse_string(ss.str().data(), result, errors);
+			}
+			else
+			{
+				if (errors) *errors = "failed to load file '" + std::string(filename) + "'";
+				return false;
+			}
+		}
 		
-		bool parse(char const* string, value& result, std::string* errors)
+		bool parse_string(char const* string, value& result, std::string* errors)
 		{
 			line_num = 1;
 			if (string)
@@ -400,42 +332,8 @@ namespace json
 	private:
 		
 		typedef std::runtime_error fail;
-
-		class stringbuf
-		{
-		public:
-		
-			stringbuf() : capacity(0), data(nullptr) { init(); }
-			~stringbuf() { if (data) free(data); }
-			
-			void init() { size = 0; }
-			
-			char* emit()
-			{
-				char* result = new char[size];
-				memcpy(result, data, size);
-				return result;
-			}
-			
-			inline void operator << (char c)
-			{
-				if (size == capacity)
-				{
-					capacity = size + 256;
-					data = (char*)realloc(data, capacity);
-				}
-				data[size++] = c;
-			}
-		
-		private:
-		
-			char*  data;
-			size_t capacity;
-			size_t size;
-		};
 		
 		char const* source;
-		stringbuf   strbuf;
 		std::size_t line_num;
 		
 		void skip_whitespaces()
@@ -444,7 +342,7 @@ namespace json
 			{
 				if (*source == '\n') ++line_num;
 				if (*source != ' ' && *source != '\t' && *source != '\r' && *source != '\n') return;
-	 			else ++source;
+				else ++source;
 			}
 			throw fail("unexpected end of document");
 		}
@@ -479,25 +377,28 @@ namespace json
 		
 		void read_object(value& val)
 		{
-			val = value('o');
 			++source;
+			val = value(value::type_object);
 			while (*source)
 			{
-				auto node = val.data.a.push();
 				skip_whitespaces();
+				
+				if (*source == '}')
+				{
+					++source;
+					return;
+				}
+				
 				if (*source == '"')
 				{
-					node->key = read_raw_string();
+					std::string key = read_raw_string();
 					skip_whitespaces();
 					if (*source++ == ':')
 					{
 						skip_whitespaces();
-						read_value(node->val);
+						read_value(val(key));
 						skip_whitespaces();
-						
-						char c = *source++;
-						if (c == '}') return;
-						if (c != ',') throw fail("expected ',' or '}' after key-value pair");
+						if (*source == ',') ++source;
 					}
 					else
 					{
@@ -514,8 +415,8 @@ namespace json
 
 		void read_array(value& val)
 		{
-			val = value('a');
 			++source;
+			val = value(value::type_array);
 			while (*source)
 			{
 				skip_whitespaces();
@@ -525,13 +426,9 @@ namespace json
 					return;
 				}
 				
-				if (val.data.a.head)
-				{
-					if (*source == ',') ++source;
-					else throw fail("unexpected end of array");
-				}
-				
-				read_value(val.data.a.push()->val);
+				read_value(val.append());
+				skip_whitespaces();
+				if (*source == ',') ++source;
 			}
 			throw fail("unexpected end of array");
 		}
@@ -568,7 +465,7 @@ namespace json
 				double exp_mult;
 				if      (*source == '-') { exp_mult = 0.1f; ++source; }
 				else if (*source == '+') { exp_mult = 10;   ++source; }
-				else                    { exp_mult = 10; }
+				else                     { exp_mult = 10; }
 				
 				std::size_t exp = 0;
 				while (*source && *source >= '0' && *source <= '9')
@@ -585,32 +482,29 @@ namespace json
 		
 		void read_string(value& val)
 		{
-			val = value('s');
-			val.data.s = read_raw_string();
+			val = read_raw_string();
 		}
 		
-		char* read_raw_string() // XXX: string allocated
+		std::string read_raw_string() // TODO: optimize?
 		{
-			strbuf.init();
+			std::ostringstream ss;
 			++source;
 			while (*source)
 			{
 				if (*source == '\\')
 				{
-					strbuf << read_escaped_symbol();
+					ss << read_escaped_symbol();
 				}
 				else if (*source == '"')
 				{
 					++source;
-					strbuf << '\0';
-					return strbuf.emit();
+					return ss.str();
 				}
 				else
 				{
-					strbuf << *source++;
+					ss << *source++;
 				}
 			}
-			
 			throw fail("unexpected end of string");
 		}
 		
@@ -629,7 +523,7 @@ namespace json
 					case 'n':  return '\n';
 					case 'r':  return '\r';
 					case 't':  return '\t';
-					case 'u': return read_unicode_character();
+					case 'u':  return read_unicode_character();
 					default: throw fail("invalid escaped symbol");
 				}
 			}
@@ -677,28 +571,18 @@ namespace json
 		}
 	};
 
+	// MARK: serializer
+
 	class writer
 	{
 	public:
 
-		struct options
+		writer(std::ostream& os) : m_os(os)
 		{
-			bool formatted;
-			std::string tab_character;
-
-			options()
-				: formatted(true)
-				, tab_character("  ")
-			{}
-		};
-
-		writer(std::ostream& os)
-		: m_os(os)
-		{
-			m_os << std::setprecision(20);
+			m_os << std::setprecision(17);
 		}
 
-		void write(value const& v, options const& options = writer::options())
+		void write(value const& v, serialize_options const& options = serialize_options())
 		{
 			m_options = options;
 			m_indents = 0;
@@ -712,16 +596,15 @@ namespace json
 		writer& operator = (writer const&) = delete;
 		writer& operator = (writer&&) = delete;
 
-		std::ostream& m_os;
-		int           m_indents;
-		options       m_options;
+		std::ostream&     m_os;
+		int               m_indents;
+		serialize_options m_options;
 
-		void write_string(char* str)
+		void write_string(std::string const* str)
 		{
 			if (!str) return;
-			while (*str)
+			for (auto c : *str)
 			{
-				char c = *str++;
 				switch (c)
 				{
 				case '"':  m_os << "\\\""; break;
@@ -733,9 +616,7 @@ namespace json
 				case '\r': m_os << "\\r";  break;
 				case '\t': m_os << "\\t";  break;
 			//	case '\u': break; // TODO: ...
-				default:
-					m_os << c;
-					break;
+				default:   m_os << c;      break;
 				}
 			}
 		}
@@ -744,72 +625,80 @@ namespace json
 		{
 			switch (v.type)
 			{
-			case ' ':
+			case value::type_null:
 				m_os << "null";
 				break;
 
-			case 'n':
+			case value::type_number:
 				m_os << v.data.n;
 				break;
 
-			case 'b':
+			case value::type_bool:
 				m_os << (v.data.b ? "true" : "false");
 				break;
 
-			case 's':
-				m_os << "\"";
+			case value::type_string:
+				m_os << '"';
 				write_string(v.data.s);
-				m_os << "\"";
+				m_os << '"';
 				break;
 
-			case 'a':
+			case value::type_array:
 				{
-					put_newline();
-					m_os << "[";
+					m_os << '[';
 					++m_indents;
 					put_newline();
 					
-					for (auto node = v.data.a.head; node; node = node->next)
+					if (v.data.a)
 					{
-						write_value(node->val);
-						if (node->next)
+						for (auto const& it : *v.data.a)
 						{
-							m_os << ",";
-							put_newline();
-						//	put_space();
+							write_value(it);
+							if (&it != &v.data.a->back())
+							{
+								m_os << ',';
+								put_newline();
+							}
 						}
 					}
 					
 					--m_indents;
 					put_newline();
-					m_os << "]";
+					m_os << ']';
 				}
 				break;
 
-			case 'o':
+			case value::type_object:
 				{
-					put_newline();
-					m_os << "{";
+					m_os << '{';
 					++m_indents;
 					put_newline();
-
-					for (auto node = v.data.a.head; node; node = node->next)
+					
+					for (std::size_t i=0; i<v.data.o->size(); ++i)
 					{
-						m_os << "\"" << (node->key ? node->key : "") << "\"";
+						auto const& it = v.data.o->at(i);
+						auto const& key = *it.first;
+						auto const& val = it.second;
+						
+						m_os << '"' << key << '"';
 						put_space();
 						m_os << ':';
-						put_space();
-						write_value(node->val);
-						if (node->next)
+
+						if (val.type == value::type_array || val.type == value::type_object) put_newline();
+						else put_space();
+						
+						write_value(val);
+
+						if (i != v.data.o->size() - 1)
 						{
-							m_os << ",";
+							m_os << ',';
 							put_newline();
 						}
 					}
 
 					--m_indents;
 					put_newline();
-					m_os << "}";
+					m_os << '}';
 				}
 				break;
 			}
@@ -818,61 +707,66 @@ namespace json
 
 		void put_space()
 		{
-			if (m_options.formatted) m_os << ' ';
+			if (m_options.pretty_print) m_os << ' ';
 		}
 
 		void put_newline()
 		{
-			if (m_options.formatted)
+			if (m_options.pretty_print)
 			{
 				m_os << '\n';
 				for (int i = 0; i < m_indents; ++i) m_os << m_options.tab_character;
 			}
 		}
 	};
-
-	inline bool from_string(char const* str, value& result, std::string* errors = nullptr)
-	{
-		reader r;
-		return r.parse(str, result, errors);
-	}
-
-	inline bool from_file(char const* filename, value& result, std::string* errors = nullptr)
-	{
-		std::ifstream stream(filename);
-		if (stream)
-		{
-			stream.seekg(0, std::ios::end);
-			auto sz = stream.tellg();
-			stream.seekg(0, std::ios::beg);
-			char* text = new char[sz];
-			stream.read(text, sz);
-			bool status = from_string(text, result, errors);
-			delete[] text;
-			return status;
-		}
-		else
-		{
-			if (errors) *errors = "failed to load file '" + std::string(filename) + "'";
-			return false;
-		}
-	}
-
-	inline void to_file(char const* filename, value const& v, writer::options const& options = writer::options())
-	{
-		std::ofstream ofs(filename, std::ios::binary);
-		writer w(ofs);
-		w.write(v, options);
-	}
-
-	inline std::string to_string(value const& v, writer::options const& options = writer::options())
-	{
-		std::ostringstream oss;
-		writer w(oss);
-		w.write(v, options);
-		return oss.str();
-	}
-
 };
+
+// MARK: type conversion specializations
+template <> inline char const* value::as<char const*>() const
+{
+	return type == type_string ? data.s->c_str() : "";
+}
+
+template <> inline std::string value::as<std::string>() const
+{
+	return as<char const*>();
+}
+
+template <> inline std::string const& value::as<std::string const&>() const
+{
+	static std::string empty;
+	return type == type_string ? *data.s : empty;
+}
+
+template <> inline bool value::as<bool>() const
+{
+	switch (type)
+	{
+	case type_null:   return  false;
+	case type_bool:   return  data.b;
+	case type_number: return  data.n != 0;
+	case type_string: return !data.s->empty();
+	case type_array:  return !data.a->empty();
+	case type_object: return !data.o->empty();
+	}
+}
+
+// MARK: helpers
+
+inline std::ostream& operator << (std::ostream& ss, value const& val)
+{
+	switch (val.type)
+	{
+		case value::type_null:   ss << "null";                break;
+		case value::type_bool:   ss << val.as<bool>();        break;
+		case value::type_number: ss << val.as<double>();      break;
+		case value::type_string: ss << val.as<std::string>(); break;
+		case value::type_array:  ss << "array";               break;
+		case value::type_object: ss << "object";              break;
+	}
+	return ss;
+}
+
+}
 
 #undef NOEXCEPT
