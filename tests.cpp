@@ -1,5 +1,5 @@
 #include <iostream>
-#include "tests.h"
+#include "tests.hpp"
 
 #if (TEST_LEAKS)
 
@@ -21,7 +21,7 @@ void operator delete(void* ptr) noexcept
 
 #endif
 
-#include "jayson.h"
+#include "jayson.hpp"
 
 namespace json
 {

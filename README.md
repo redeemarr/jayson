@@ -2,7 +2,7 @@ jayson
 ======
 
 Yet another C++ json library.
-It consists of one header file and supposed to be lightweight, easy to integrate and use.
+It consists of one header file and supposed to be lightweight, easy to integrate and use. Just add jayson.hpp to your project.
 
 You can generate json data within your code like this:
 ```C++

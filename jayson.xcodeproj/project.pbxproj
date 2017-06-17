@@ -24,8 +24,8 @@
 /* End PBXCopyFilesBuildPhase section */
 
 /* Begin PBXFileReference section */
-		26359F491C5BF3F800EA5173 /* jayson.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = jayson.h; sourceTree = "<group>"; };
-		26359F4A1C5BF3F800EA5173 /* tests.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = tests.h; sourceTree = "<group>"; };
+		26359F491C5BF3F800EA5173 /* jayson.hpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.h; path = jayson.hpp; sourceTree = "<group>"; };
+		26359F4A1C5BF3F800EA5173 /* tests.hpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.h; path = tests.hpp; sourceTree = "<group>"; };
 		26359F4B1C5BF3F800EA5173 /* example.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; path = example.cpp; sourceTree = "<group>"; };
 		26359F4C1C5BF3F800EA5173 /* tests.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; path = tests.cpp; sourceTree = "<group>"; };
 		26359F4F1C5BF77B00EA5173 /* README.md */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = net.daringfireball.markdown; path = README.md; sourceTree = "<group>"; };
@@ -47,8 +47,8 @@
 			isa = PBXGroup;
 			children = (
 				26359F4F1C5BF77B00EA5173 /* README.md */,
-				26359F491C5BF3F800EA5173 /* jayson.h */,
-				26359F4A1C5BF3F800EA5173 /* tests.h */,
+				26359F491C5BF3F800EA5173 /* jayson.hpp */,
+				26359F4A1C5BF3F800EA5173 /* tests.hpp */,
 				26359F4C1C5BF3F800EA5173 /* tests.cpp */,
 				26359F4B1C5BF3F800EA5173 /* example.cpp */,
 				265DD6561C5717A30007A098 /* Products */,

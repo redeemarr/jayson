@@ -1,6 +1,6 @@
 #include <iostream>
-#include "jayson.h"
-#include "tests.h"
+#include "jayson.hpp"
+#include "tests.hpp"
 
 int main(int argc, const char* argv[])
 {
