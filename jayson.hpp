@@ -82,7 +82,8 @@ private:
 	{
 	private:
 	
-		typedef std::pair<std::string const*, value> pair_t;
+		// TODO: optimize (2 strings for key)
+		typedef std::pair<std::string, value> pair_t;
 		typedef std::vector<pair_t> values_t;
 		typedef std::unordered_map<std::string, std::size_t> map_t;
 	
@@ -129,8 +130,8 @@ private:
 			}
 			else
 			{
-				auto rec = map.emplace(key, values.size()).first;
-				values.push_back(std::make_pair(&rec->first, value()));
+				map.emplace(key, values.size());
+				values.emplace_back(key, value());
 				return values.back().second;
 			}
 		}
@@ -253,6 +254,11 @@ public:
 	
 	void remove(char const* key) { if (type == type_object) data.o->remove(key); }
 	void remove(std::string const& key) { remove(key.c_str()); }
+	
+	void remove(std::size_t index)
+	{
+		if (type == type_array) data.a->erase(data.a->begin() + index);
+	}
 	
 private:
 
@@ -673,7 +679,7 @@ private:
 					for (std::size_t i=0; i<v.data.o->size(); ++i)
 					{
 						auto const& it = v.data.o->at(i);
-						auto const& key = *it.first;
+						auto const& key = it.first;
 						auto const& val = it.second;
 						
 						m_os << '"' << key << '"';
