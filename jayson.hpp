@@ -27,6 +27,16 @@ struct serialize_options
 	{}
 };
 
+enum class type : char
+{
+	null    = ' ',
+	boolean = 'b',
+	number  = 'n',
+	string  = 's',
+	array   = 'a',
+	object  = 'o'
+};
+
 class value
 {
 	friend class tests; // FIXME: get rid
@@ -67,16 +77,6 @@ private:
 	typedef std::initializer_list<value> ilist_t;
 	typedef std::string string_t;
 	typedef std::vector<value> array_t;
-
-	enum type_t
-	{
-		type_null   = ' ',
-		type_bool   = 'b',
-		type_number = 'n',
-		type_string = 's',
-		type_array  = 'a',
-		type_object = 'o'
-	};
 	
 	class object_t
 	{
@@ -146,7 +146,7 @@ private:
 		object_t* o;
 	} data;
 	
-	type_t type;
+	type type;
 
 public:
 	
@@ -154,30 +154,41 @@ public:
 	
 	~value()
 	{
-		if (type == type_string || type == type_array || type == type_object)
+		if (type == type::string || type == type::array || type == type::object)
 		{
 			switch (type)
 			{
-				case type_string: delete data.s; break;
-				case type_array:  delete data.a; break;
-				case type_object: delete data.o; break;
-				case type_null:
-				case type_bool:
-				case type_number:;
+				case type::string: delete data.s; break;
+				case type::array:  delete data.a; break;
+				case type::object: delete data.o; break;
+				case type::null:
+				case type::boolean:
+				case type::number:;
 			}
 		}
 	}
 
 	// MARK: constructors
-	value()                     : value(type_null)   {}
-	value(value const& v)       : value(type_null)   { *this = v; }
-	value(value&& v) NOEXCEPT   : value(type_null)   { std::swap(type, v.type), std::swap(data, v.data); }
-	value(bool v)               : value(type_bool)   {  data.b = v; }
-	value(char const* v)        : value(type_string) { *data.s = v; }
-	value(std::string const& v) : value(type_string) { *data.s = v; }
-	value(ilist_t const& list)  : value(type_array)  { *data.a = list; }
-	value(ilist_t&& list)       : value(type_array)  { *data.a = list; }
-	template <typename T> value(T const& t) : value(type_number) { data.n = t; }
+	value()                     : value(type::null)    {}
+	value(value const& v)       : value(type::null)    { *this = v; }
+	value(value&& v) NOEXCEPT   : value(type::null)    { std::swap(type, v.type), std::swap(data, v.data); }
+	value(bool v)               : value(type::boolean) {  data.b = v; }
+	value(char const* v)        : value(type::string)  { *data.s = v; }
+	value(std::string const& v) : value(type::string)  { *data.s = v; }
+	value(ilist_t const& list)  : value(type::array)   { *data.a = list; }
+	value(ilist_t&& list)       : value(type::array)   { *data.a = list; }
+	template <typename T> value(T const& t) : value(type::number) { data.n = t; }
+
+	value(enum type t) : type(t)
+	{
+		switch (type)
+		{
+			case type::string: data.s = new string_t(); break;
+			case type::array:  data.a = new array_t();  break;
+			case type::object: data.o = new object_t(); break;
+			default:;
+		}
+	}
 
 	// MARK: assignment operators
 	value& operator = (value const& v)
@@ -185,95 +196,84 @@ public:
 		check_type(v.type);
 		switch (type)
 		{
-			case type_bool:    data.b =  v.data.b; break;
-			case type_number:  data.n =  v.data.n; break;
-			case type_string: *data.s = *v.data.s; break;
-			case type_array:  *data.a = *v.data.a; break;
-			case type_object: *data.o = *v.data.o; break;
-			case type_null:;
+			case type::boolean: data.b =  v.data.b; break;
+			case type::number:  data.n =  v.data.n; break;
+			case type::string: *data.s = *v.data.s; break;
+			case type::array:  *data.a = *v.data.a; break;
+			case type::object: *data.o = *v.data.o; break;
+			case type::null:;
 		}
 		return *this;
 	}
 
 	value& operator = (value&& v)                 { std::swap(type, v.type); std::swap(data, v.data); return *this; }
-	value& operator = (ilist_t const& list)       { check_type(type_array);  *data.a = list; return *this; }
-	value& operator = (bool b)                    { check_type(type_bool);    data.b = b;    return *this; }
-	value& operator = (char const* str)           { check_type(type_string); *data.s = str;  return *this; }
-	value& operator = (std::string const& str)    { check_type(type_string); *data.s = str;  return *this; }
-	template <typename T> value& operator = (T n) { check_type(type_number);  data.n = n;    return *this; }
+	value& operator = (ilist_t const& list)       { check_type(type::array);  *data.a = list; return *this; }
+	value& operator = (bool b)                    { check_type(type::boolean); data.b = b;    return *this; }
+	value& operator = (char const* str)           { check_type(type::string); *data.s = str;  return *this; }
+	value& operator = (std::string const& str)    { check_type(type::string); *data.s = str;  return *this; }
+	template <typename T> value& operator = (T n) { check_type(type::number);  data.n = n;    return *this; }
 
 	// MARK: type conversions
-	template <typename T> T as() const { return type == type_number ? data.n : 0; }
+	template <typename T> T as() const { return type == type::number ? data.n : 0; }
 	template <typename T> operator T () const { return as<T>(); }
 	
 	// MARK: comparison operators
-	bool operator == (char const* s)        const { return (type == type_string && s) ? *data.s == s : false; }
-	bool operator == (std::string const& s) const { return  type == type_string       ? *data.s == s : false; }
+	bool operator == (char const* s)        const { return (type == type::string && s) ? *data.s == s : false; }
+	bool operator == (std::string const& s) const { return  type == type::string       ? *data.s == s : false; }
 	
 	template <typename T> bool operator == (T const& v) const { return static_cast<T>(*this) == v; }
 	template <typename T> bool operator != (T const& v) const { return !(*this == v); }
 
 	std::size_t size() const
 	{
-		if      (type == type_array)  return data.a->size();
-		else if (type == type_object) return data.o->size();
+		if      (type == type::array)  return data.a->size();
+		else if (type == type::object) return data.o->size();
 		return 0;
 	}
 
 	// MARK: array access
 	value& append(value const& v = value())
 	{
-		check_type(type_array);
+		check_type(type::array);
 		data.a->emplace_back(v);
 		return data.a->back();
 	}
 
 	value& append(value&& v)
 	{
-		check_type(type_array);
+		check_type(type::array);
 		data.a->emplace_back(v);
 		return data.a->back();
 	}
 
 	value const& operator [] (std::size_t index) const
 	{
-		if (type == type_array && data.a && index < data.a->size()) return (*data.a)[index];
+		if (type == type::array && data.a && index < data.a->size()) return (*data.a)[index];
 		else return null();
 	}
 
 	value& operator [] (std::size_t index)
 	{
-		check_type(type_array);
+		check_type(type::array);
 		if (index >= data.a->size()) data.a->resize(index + 1);
 		return (*data.a)[index];
 	}
 	
 	// MARK: object access
-	value const& operator () (std::string const& key) const { return type == type_object ? data.o->get(key) : null(); }
-	value&       operator () (std::string const& key)       { check_type(type_object); return data.o->get(key); }
+	value const& operator () (std::string const& key) const { return type == type::object ? data.o->get(key) : null(); }
+	value&       operator () (std::string const& key)       { check_type(type::object); return data.o->get(key); }
 	
-	void remove(char const* key) { if (type == type_object) data.o->remove(key); }
+	void remove(char const* key) { if (type == type::object) data.o->remove(key); }
 	void remove(std::string const& key) { remove(key.c_str()); }
 	
 	void remove(std::size_t index)
 	{
-		if (type == type_array) data.a->erase(data.a->begin() + index);
+		if (type == type::array) data.a->erase(data.a->begin() + index);
 	}
 	
 private:
-
-	value(type_t t) : type(t)
-	{
-		switch (type)
-		{
-			case type_string: data.s = new string_t(); break;
-			case type_array:  data.a = new array_t();  break;
-			case type_object: data.o = new object_t(); break;
-			default:;
-		}
-	}
-		
-	void check_type(type_t t)
+	
+	void check_type(enum type t)
 	{
 		if (type != t)
 		{
@@ -381,7 +381,7 @@ private:
 		void read_object(value& val)
 		{
 			++source;
-			val = value(value::type_object);
+			val = value(type::object);
 			while (*source)
 			{
 				skip_whitespaces();
@@ -419,7 +419,7 @@ private:
 		void read_array(value& val)
 		{
 			++source;
-			val = value(value::type_array);
+			val = value(type::array);
 			while (*source)
 			{
 				skip_whitespaces();
@@ -627,25 +627,25 @@ private:
 		{
 			switch (v.type)
 			{
-			case value::type_null:
+			case type::null:
 				m_os << "null";
 				break;
 
-			case value::type_number:
+			case type::number:
 				m_os << v.data.n;
 				break;
 
-			case value::type_bool:
+			case type::boolean:
 				m_os << (v.data.b ? "true" : "false");
 				break;
 
-			case value::type_string:
+			case type::string:
 				m_os << '"';
 				write_string(v.data.s);
 				m_os << '"';
 				break;
 
-			case value::type_array:
+			case type::array:
 				{
 					m_os << '[';
 					++m_indents;
@@ -670,7 +670,7 @@ private:
 				}
 				break;
 
-			case value::type_object:
+			case type::object:
 				{
 					m_os << '{';
 					++m_indents;
@@ -686,7 +686,7 @@ private:
 						put_space();
 						m_os << ':';
 
-						if (val.type == value::type_array || val.type == value::type_object) put_newline();
+						if (val.type == type::array || val.type == type::object) put_newline();
 						else put_space();
 						
 						write_value(val);
@@ -726,7 +726,7 @@ private:
 // MARK: type conversion specializations
 template <> inline char const* value::as<char const*>() const
 {
-	return type == type_string ? data.s->c_str() : "";
+	return type == type::string ? data.s->c_str() : "";
 }
 
 template <> inline std::string value::as<std::string>() const
@@ -737,19 +737,19 @@ template <> inline std::string value::as<std::string>() const
 template <> inline std::string const& value::as<std::string const&>() const
 {
 	static std::string empty;
-	return type == type_string ? *data.s : empty;
+	return type == type::string ? *data.s : empty;
 }
 
 template <> inline bool value::as<bool>() const
 {
 	switch (type)
 	{
-	case type_null:   return  false;
-	case type_bool:   return  data.b;
-	case type_number: return  data.n != 0;
-	case type_string: return !data.s->empty();
-	case type_array:  return !data.a->empty();
-	case type_object: return !data.o->empty();
+	case type::null:    return  false;
+	case type::boolean: return  data.b;
+	case type::number:  return  data.n != 0;
+	case type::string:  return !data.s->empty();
+	case type::array:   return !data.a->empty();
+	case type::object:  return !data.o->empty();
 	}
 }
 
@@ -758,12 +758,12 @@ inline std::ostream& operator << (std::ostream& ss, value const& val)
 {
 	switch (val.type)
 	{
-		case value::type_null:   ss << "null";                break;
-		case value::type_bool:   ss << val.as<bool>();        break;
-		case value::type_number: ss << val.as<double>();      break;
-		case value::type_string: ss << val.as<std::string>(); break;
-		case value::type_array:  ss << "array";               break;
-		case value::type_object: ss << "object";              break;
+		case type::null:    ss << "null";                break;
+		case type::boolean: ss << val.as<bool>();        break;
+		case type::number:  ss << val.as<double>();      break;
+		case type::string:  ss << val.as<std::string>(); break;
+		case type::array:   ss << "array";               break;
+		case type::object:  ss << "object";              break;
 	}
 	return ss;
 }
