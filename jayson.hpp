@@ -1,11 +1,5 @@
 #pragma once
 
-#ifndef _MSC_VER
-#define NOEXCEPT noexcept
-#else
-#define NOEXCEPT
-#endif
-
 #include <string>
 #include <vector>
 #include <unordered_map>
@@ -171,7 +165,7 @@ public:
 	// MARK: constructors
 	value()                     : value(type::null)    {}
 	value(value const& v)       : value(type::null)    { *this = v; }
-	value(value&& v) NOEXCEPT   : value(type::null)    { std::swap(type, v.type), std::swap(data, v.data); }
+	value(value&& v) noexcept   : value(type::null)    { std::swap(type, v.type), std::swap(data, v.data); }
 	value(bool v)               : value(type::boolean) {  data.b = v; }
 	value(char const* v)        : value(type::string)  { *data.s = v; }
 	value(std::string const& v) : value(type::string)  { *data.s = v; }
@@ -259,17 +253,17 @@ public:
 		return (*data.a)[index];
 	}
 	
+	void remove(std::size_t index)
+	{
+		if (type == type::array) data.a->erase(data.a->begin() + index);
+	}
+	
 	// MARK: object access
 	value const& operator () (std::string const& key) const { return type == type::object ? data.o->get(key) : null(); }
 	value&       operator () (std::string const& key)       { check_type(type::object); return data.o->get(key); }
 	
 	void remove(char const* key) { if (type == type::object) data.o->remove(key); }
 	void remove(std::string const& key) { remove(key.c_str()); }
-	
-	void remove(std::size_t index)
-	{
-		if (type == type::array) data.a->erase(data.a->begin() + index);
-	}
 	
 private:
 	
@@ -769,5 +763,3 @@ inline std::ostream& operator << (std::ostream& ss, value const& val)
 }
 
 }
-
-#undef NOEXCEPT
