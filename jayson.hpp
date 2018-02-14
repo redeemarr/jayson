@@ -627,7 +627,14 @@ private:
 				break;
 
 			case type::number:
-				m_os << std::fixed << std::setprecision(m_options.number_precision) << v.data.n;
+				if (floor(v.data.n) == v.data.n)
+				{
+					m_os << (int)v.data.n;
+				}
+				else
+				{
+					m_os << std::fixed << std::setprecision(m_options.number_precision) << v.data.n;
+				}
 				break;
 
 			case type::boolean:
