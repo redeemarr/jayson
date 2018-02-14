@@ -15,12 +15,13 @@ struct serialize_options
 	bool        pretty_print;
 	bool        java_style_braces;
 	std::string indent;
-	size_t      number_precision;
+	int         number_precision;
 
-	serialize_options(bool pretty_print=true, bool java_style_braces=false, std::string const& indent="  ", size_t number_precision=5)
+	serialize_options(bool pretty_print=true, bool java_style_braces=false, std::string const& indent="  ", int number_precision=5)
 	: pretty_print(pretty_print)
 	, java_style_braces(java_style_braces)
 	, indent(indent)
+	, number_precision(number_precision)
 	{}
 };
 
@@ -582,7 +583,6 @@ private:
 		{
 			m_options = options;
 			m_indents = 0;
-			m_os << std::defaultfloat;
 			write_value(v);
 		}
 
@@ -627,7 +627,7 @@ private:
 				break;
 
 			case type::number:
-				m_os << v.data.n;
+				m_os << std::fixed << std::setprecision(m_options.number_precision) << v.data.n;
 				break;
 
 			case type::boolean:

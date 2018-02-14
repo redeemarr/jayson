@@ -7,14 +7,20 @@ int main(int argc, const char* argv[])
 //	json::tests::run(); return 0;
 
 	// You can generate json data within your code like this:
-	json::value number = 12.34;
+	json::value number = 12.3445236543657123;
 	json::value string = "string";
-	json::value array = { number, string };
+	json::value array = { 123, number, string };
 	json::value object;
 	object("key") = array;
 	
 	// ...then serialize it to string:
-	std::string str = object.serialize();
+	
+	json::serialize_options opts;
+	opts.number_precision = 2;
+	std::string str = object.serialize(opts);
+	
+	std::cout << str << "\n";
+	return 0;
 	
 	// ...or write to file:
 	object.serialize("test.json");
