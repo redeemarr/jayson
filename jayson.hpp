@@ -13,11 +13,14 @@ namespace json
 struct serialize_options
 {
 	bool        pretty_print;
-	std::string tab_character;
+	bool        java_style_braces;
+	std::string indent;
+	size_t      number_precision;
 
-	serialize_options(bool pretty_print=true, std::string const& tab_character="  ")
+	serialize_options(bool pretty_print=true, bool java_style_braces=false, std::string const& indent="  ", size_t number_precision=5)
 	: pretty_print(pretty_print)
-	, tab_character(tab_character)
+	, java_style_braces(java_style_braces)
+	, indent(indent)
 	{}
 };
 
@@ -253,17 +256,17 @@ public:
 		return (*data.a)[index];
 	}
 	
-	void remove(std::size_t index)
-	{
-		if (type == type::array) data.a->erase(data.a->begin() + index);
-	}
-	
 	// MARK: object access
 	value const& operator () (std::string const& key) const { return type == type::object ? data.o->get(key) : null(); }
 	value&       operator () (std::string const& key)       { check_type(type::object); return data.o->get(key); }
 	
 	void remove(char const* key) { if (type == type::object) data.o->remove(key); }
 	void remove(std::string const& key) { remove(key.c_str()); }
+	
+	void remove(std::size_t index)
+	{
+		if (type == type::array) data.a->erase(data.a->begin() + index);
+	}
 	
 private:
 	
@@ -573,15 +576,13 @@ private:
 	{
 	public:
 
-		writer(std::ostream& os) : m_os(os)
-		{
-			m_os << std::setprecision(17);
-		}
+		writer(std::ostream& os) : m_os(os) {}
 
 		void write(value const& v, serialize_options const& options = serialize_options())
 		{
 			m_options = options;
 			m_indents = 0;
+			m_os << std::defaultfloat;
 			write_value(v);
 		}
 
@@ -680,8 +681,15 @@ private:
 						put_space();
 						m_os << ':';
 
-						if (val.type == type::array || val.type == type::object) put_newline();
-						else put_space();
+						if (val.type == type::array || val.type == type::object)
+						{
+							if (m_options.java_style_braces) put_space();
+							else put_newline();
+						}
+						else
+						{
+							put_space();
+						}
 						
 						write_value(val);
 
@@ -711,7 +719,7 @@ private:
 			if (m_options.pretty_print)
 			{
 				m_os << '\n';
-				for (int i = 0; i < m_indents; ++i) m_os << m_options.tab_character;
+				for (int i = 0; i < m_indents; ++i) m_os << m_options.indent;
 			}
 		}
 	};
