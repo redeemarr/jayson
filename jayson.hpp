@@ -584,6 +584,7 @@ private:
 			m_options = options;
 			m_indents = 0;
 			write_value(v);
+			if (m_options.pretty_print) m_os << '\n';
 		}
 
 	private:

@@ -8,7 +8,7 @@ int main(int argc, const char* argv[])
 
 	// You can generate json data within your code like this:
 	json::value number = 12.34;
-	json::value string = "string";
+	json::value string = "text";
 	json::value array = { 123, number, string };
 	json::value object;
 	object("key") = array;
@@ -26,8 +26,8 @@ int main(int argc, const char* argv[])
 	{
 		auto const& array = result("key");
 		double number = array[0];
-		std::string string = array[1];
-		std::cout << number << ", " << string << std::endl;
+		std::string string = array[2];
+		std::cout << number << ", " << array[1] << ", " << string << std::endl;
 	}
 	else
 	{
