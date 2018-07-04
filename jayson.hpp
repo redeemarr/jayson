@@ -496,18 +496,31 @@ private:
 			++source;
 			while (*source)
 			{
-//				if (*source == '\\')
-//				{
-//					if (source[1] == 'u')
-//					{
-//						ss << *source++;
-//					}
-//					else
-//					{
-//						ss << read_escaped_symbol();
-//					}
-//				}
-//				else
+				if (*source == '\\')
+				{
+					++source;
+					if (*source)
+					{
+						switch (*source++)
+						{
+							case '"':  ss << '"'; break;
+							case '/':  ss << '/'; break;
+							case '\\': ss << '\\'; break;
+							case 'b':  ss << '\b'; break;
+							case 'f':  ss << '\f'; break;
+							case 'n':  ss << '\n'; break;
+							case 'r':  ss << '\r'; break;
+							case 't':  ss << '\t'; break;
+							case 'u':  ss << "\\u"; break;
+							default: throw fail("invalid escaped symbol");
+						}
+					}
+					else
+					{
+						throw fail("unexpected end of escaped symbol");
+					}
+				}
+				else
 				if (*source == '"')
 				{
 					++source;
@@ -536,6 +549,9 @@ private:
 //					case 'n':  return '\n';
 //					case 'r':  return '\r';
 //					case 't':  return '\t';
+//					case 'u':
+//						return *source;
+//						break;
 //				//	case 'u':  return read_unicode_character();
 //					default: throw fail("invalid escaped symbol");
 //				}
@@ -613,26 +629,22 @@ private:
 		void write_string(std::string const* str)
 		{
 			if (!str) return;
-			m_os << *str;
-			
-//			for (auto c : *str)
-//			{
-//				m_os << c;
-//				
-//				switch (c)
-//				{
-//				case '"':  m_os << "\\\""; break;
-//			//	case '/':  m_os << "\\/";  break;
-//			//	case '\\': m_os << "\\\\"; break;
-//				case '\b': m_os << "\\b";  break;
-//				case '\f': m_os << "\\f";  break;
-//				case '\n': m_os << "\\n";  break;
-//				case '\r': m_os << "\\r";  break;
-//				case '\t': m_os << "\\t";  break;
-//			//	case '\u': break; // TODO: ...
-//				default:   m_os << c;      break;
-//				}
-//			}
+			for (auto c : *str)
+			{
+				switch (c)
+				{
+				case '"':  m_os << "\\\""; break;
+			//	case '/':  m_os << "\\/";  break;
+			//	case '\\': m_os << "\\\\"; break;
+				case '\b': m_os << "\\b";  break;
+				case '\f': m_os << "\\f";  break;
+				case '\n': m_os << "\\n";  break;
+				case '\r': m_os << "\\r";  break;
+				case '\t': m_os << "\\t";  break;
+			//	case '\u': break; // TODO: ...
+				default:   m_os << c;      break;
+				}
+			}
 		}
 
 		std::ostream& write_value(value const& v)
