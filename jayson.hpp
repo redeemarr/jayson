@@ -17,7 +17,7 @@ struct serialize_options
 	std::string indent;
 	int         number_precision;
 
-	serialize_options(bool pretty_print=true, bool java_style_braces=false, std::string const& indent="  ", int number_precision=5)
+	serialize_options(bool pretty_print=true, bool java_style_braces=false, std::string const& indent="  ", int number_precision=2)
 	: pretty_print(pretty_print)
 	, java_style_braces(java_style_braces)
 	, indent(indent)
@@ -41,6 +41,9 @@ class value
 	friend std::ostream& operator << (std::ostream&, value const&);
 
 public:
+
+	typedef std::pair<std::string, value> keyval_t;
+	typedef std::vector<keyval_t> keyvals_t;
 
 	bool parse_string(char const* str) { reader r; return r.parse_string(str, *this, nullptr); }
 	bool parse_string(char const* str, std::string& errors) { reader r; return r.parse_string(str, *this, &errors); }
@@ -81,12 +84,10 @@ private:
 	private:
 	
 		// TODO: optimize (2 strings for key)
-		typedef std::pair<std::string, value> pair_t;
-		typedef std::vector<pair_t> values_t;
 		typedef std::unordered_map<std::string, std::size_t> map_t;
 	
-		values_t values;
-		map_t    map;
+		keyvals_t values;
+		map_t     map;
 		
 	public:
 		
@@ -107,11 +108,8 @@ private:
 		
 		bool empty() const { return values.empty(); }
 		std::size_t size() const { return values.size(); }
-		
-		pair_t const& at(std::size_t index) const
-		{
-			return values[index];
-		}
+		keyval_t const& operator [] (std::size_t index) const { return values[index]; }
+		keyvals_t const& get_pairs() const { return values; }
 
 		value const& get(std::string const& key) const
 		{
@@ -169,7 +167,7 @@ public:
 	// MARK: constructors
 	value()                     : value(type::null)    {}
 	value(value const& v)       : value(type::null)    { *this = v; }
-	value(value&& v) noexcept   : value(type::null)    { std::swap(type, v.type), std::swap(data, v.data); }
+	value(value&& v) noexcept   : value(type::null)    { std::swap(type, v.type); std::swap(data, v.data); }
 	value(bool v)               : value(type::boolean) {  data.b = v; }
 	value(char const* v)        : value(type::string)  { *data.s = v; }
 	value(std::string const& v) : value(type::string)  { *data.s = v; }
@@ -258,6 +256,12 @@ public:
 	}
 	
 	// MARK: object access
+	keyvals_t const& get_pairs() const // FIXME: rework
+	{
+		static keyvals_t empty;
+		return type == type::object ? data.o->get_pairs() : empty;
+	}
+	
 	value const& operator () (std::string const& key) const { return type == type::object ? data.o->get(key) : null(); }
 	value&       operator () (std::string const& key)       { check_type(type::object); return data.o->get(key); }
 	
@@ -492,11 +496,19 @@ private:
 			++source;
 			while (*source)
 			{
-				if (*source == '\\')
-				{
-					ss << read_escaped_symbol();
-				}
-				else if (*source == '"')
+//				if (*source == '\\')
+//				{
+//					if (source[1] == 'u')
+//					{
+//						ss << *source++;
+//					}
+//					else
+//					{
+//						ss << read_escaped_symbol();
+//					}
+//				}
+//				else
+				if (*source == '"')
 				{
 					++source;
 					return ss.str();
@@ -509,67 +521,67 @@ private:
 			throw fail("unexpected end of string");
 		}
 		
-		char read_escaped_symbol()
-		{
-			++source;
-			if (*source)
-			{
-				switch (*source++)
-				{
-					case '"':  return '"';
-					case '/':  return '/';
-					case '\\': return '\\';
-					case 'b':  return '\b';
-					case 'f':  return '\f';
-					case 'n':  return '\n';
-					case 'r':  return '\r';
-					case 't':  return '\t';
-					case 'u':  return read_unicode_character();
-					default: throw fail("invalid escaped symbol");
-				}
-			}
-			else
-			{
-				throw fail("unexpected end of escaped symbol");
-			}
-		}
+//		char read_escaped_symbol()
+//		{
+//			++source;
+//			if (*source)
+//			{
+//				switch (*source++)
+//				{
+//					case '"':  return '"';
+//					case '/':  return '/';
+//					case '\\': return '\\';
+//					case 'b':  return '\b';
+//					case 'f':  return '\f';
+//					case 'n':  return '\n';
+//					case 'r':  return '\r';
+//					case 't':  return '\t';
+//				//	case 'u':  return read_unicode_character();
+//					default: throw fail("invalid escaped symbol");
+//				}
+//			}
+//			else
+//			{
+//				throw fail("unexpected end of escaped symbol");
+//			}
+//		}
 		
-		wchar_t hex_to_char(char hex)
-		{
-			switch (hex)
-			{
-				case '0': return 0;
-				case '1': return 1;
-				case '2': return 2;
-				case '3': return 3;
-				case '4': return 4;
-				case '5': return 5;
-				case '6': return 6;
-				case '7': return 7;
-				case '8': return 8;
-				case '9': return 9;
-				case 'a': case 'A': return 10;
-				case 'b': case 'B': return 11;
-				case 'c': case 'C': return 12;
-				case 'd': case 'D': return 13;
-				case 'e': case 'E': return 14;
-				case 'f': case 'F': return 15;
-				default: throw fail("invalid hex value");
-			}
-		}
+//		wchar_t hex_to_char(char hex)
+//		{
+//			switch (hex)
+//			{
+//				case '0': return 0;
+//				case '1': return 1;
+//				case '2': return 2;
+//				case '3': return 3;
+//				case '4': return 4;
+//				case '5': return 5;
+//				case '6': return 6;
+//				case '7': return 7;
+//				case '8': return 8;
+//				case '9': return 9;
+//				case 'a': case 'A': return 10;
+//				case 'b': case 'B': return 11;
+//				case 'c': case 'C': return 12;
+//				case 'd': case 'D': return 13;
+//				case 'e': case 'E': return 14;
+//				case 'f': case 'F': return 15;
+//				default: throw fail("invalid hex value");
+//			}
+//		}
 		
-		wchar_t read_unicode_character()
-		{
-			wchar_t result = 0;
-			for (int i=0; i<4; ++i)
-			{
-				if (!*source) throw fail("unexpected unicode character end");
-				char c = *source++;
-				wchar_t wc = hex_to_char(c);
-				result += wc << ((3 - i) * 4);
-			}
-			return result;
-		}
+//		wchar_t read_unicode_character()
+//		{
+//			wchar_t result = 0;
+//			for (int i=0; i<4; ++i)
+//			{
+//				if (!*source) throw fail("unexpected unicode character end");
+//				char c = *source++;
+//				wchar_t wc = hex_to_char(c);
+//				result += wc << ((3 - i) * 4);
+//			}
+//			return result;
+//		}
 	};
 
 	// MARK: serializer
@@ -601,22 +613,26 @@ private:
 		void write_string(std::string const* str)
 		{
 			if (!str) return;
-			for (auto c : *str)
-			{
-				switch (c)
-				{
-				case '"':  m_os << "\\\""; break;
-			//	case '/':  m_os << "\\/";  break;
-				case '\\': m_os << "\\\\"; break;
-				case '\b': m_os << "\\b";  break;
-				case '\f': m_os << "\\f";  break;
-				case '\n': m_os << "\\n";  break;
-				case '\r': m_os << "\\r";  break;
-				case '\t': m_os << "\\t";  break;
-			//	case '\u': break; // TODO: ...
-				default:   m_os << c;      break;
-				}
-			}
+			m_os << *str;
+			
+//			for (auto c : *str)
+//			{
+//				m_os << c;
+//				
+//				switch (c)
+//				{
+//				case '"':  m_os << "\\\""; break;
+//			//	case '/':  m_os << "\\/";  break;
+//			//	case '\\': m_os << "\\\\"; break;
+//				case '\b': m_os << "\\b";  break;
+//				case '\f': m_os << "\\f";  break;
+//				case '\n': m_os << "\\n";  break;
+//				case '\r': m_os << "\\r";  break;
+//				case '\t': m_os << "\\t";  break;
+//			//	case '\u': break; // TODO: ...
+//				default:   m_os << c;      break;
+//				}
+//			}
 		}
 
 		std::ostream& write_value(value const& v)
@@ -628,7 +644,7 @@ private:
 				break;
 
 			case type::number:
-				m_os << std::fixed << std::setprecision(floor(v.data.n) == v.data.n ? 0 : m_options.number_precision) << v.data.n;
+				m_os << std::fixed << std::setprecision(static_cast<int>(v.data.n) == v.data.n ? 0 : m_options.number_precision) << v.data.n;
 				break;
 
 			case type::boolean:
@@ -674,7 +690,7 @@ private:
 					
 					for (std::size_t i=0; i<v.data.o->size(); ++i)
 					{
-						auto const& it = v.data.o->at(i);
+						auto const& it = (*v.data.o)[i];
 						auto const& key = it.first;
 						auto const& val = it.second;
 						
