@@ -782,6 +782,7 @@ template <> inline bool value::as<bool>() const
 	case type::array:   return !data.a->empty();
 	case type::object:  return !data.o->empty();
 	}
+	return false;
 }
 
 // MARK: helpers
