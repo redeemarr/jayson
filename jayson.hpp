@@ -208,6 +208,14 @@ public:
 	value& operator = (char const* str)           { check_type(type::string); *data.s = str;  return *this; }
 	value& operator = (std::string const& str)    { check_type(type::string); *data.s = str;  return *this; }
 	template <typename T> value& operator = (T n) { check_type(type::number);  data.n = n;    return *this; }
+	
+	// MARK: type checks
+	bool is(enum type atype) const { return type == atype; }
+	bool is_null()   const { return type == type::null;   }
+	bool is_number() const { return type == type::number; }
+	bool is_string() const { return type == type::string; }
+	bool is_array()  const { return type == type::array;  }
+	bool is_object() const { return type == type::object; }
 
 	// MARK: type conversions
 	template <typename T> T as() const { return type == type::number ? data.n : 0; }
