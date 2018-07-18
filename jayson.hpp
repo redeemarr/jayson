@@ -111,7 +111,7 @@ private:
 		keyval_t const& operator [] (std::size_t index) const { return values[index]; }
 		keyvals_t const& get_pairs() const { return values; }
 
-		value const& get(std::string const& key) const
+		value const& get_const(std::string const& key) const
 		{
 			auto it = map.find(key);
 			return it != map.end() ? values[it->second].second : value::null();
@@ -270,7 +270,7 @@ public:
 		return type == type::object ? data.o->get_pairs() : empty;
 	}
 	
-	value const& operator () (std::string const& key) const { return type == type::object ? data.o->get(key) : null(); }
+	value const& operator () (std::string const& key) const { return type == type::object ? data.o->get_const(key) : null(); }
 	value&       operator () (std::string const& key)       { check_type(type::object); return data.o->get(key); }
 	
 	void remove(char const* key) { if (type == type::object) data.o->remove(key); }
@@ -680,24 +680,22 @@ private:
 			case type::array:
 				{
 					m_os << '[';
-					++m_indents;
-					put_newline();
-					
-					if (v.data.a)
+					if (!v.data.a->empty())
 					{
+						++m_indents;
+						put_newline();
+						
 						for (auto const& it : *v.data.a)
 						{
+							put_indents();
 							write_value(it);
-							if (&it != &v.data.a->back())
-							{
-								m_os << ',';
-								put_newline();
-							}
+							if (&it != &v.data.a->back()) m_os << ',';
+							put_newline();
 						}
+						
+						--m_indents;
+						put_indents();
 					}
-					
-					--m_indents;
-					put_newline();
 					m_os << ']';
 				}
 				break;
@@ -705,40 +703,46 @@ private:
 			case type::object:
 				{
 					m_os << '{';
-					++m_indents;
-					put_newline();
-					
-					for (std::size_t i=0; i<v.data.o->size(); ++i)
+					if (!v.data.o->empty())
 					{
-						auto const& it = (*v.data.o)[i];
-						auto const& key = it.first;
-						auto const& val = it.second;
+						++m_indents;
+						put_newline();
 						
-						m_os << '"' << key << '"';
-						put_space();
-						m_os << ':';
+						for (std::size_t i=0; i<v.data.o->size(); ++i)
+						{
+							auto const& it = (*v.data.o)[i];
+							auto const& key = it.first;
+							auto const& val = it.second;
+							
+							put_indents();
+							m_os << '"' << key << "\":";
 
-						if (val.type == type::array || val.type == type::object)
-						{
-							if (m_options.java_style_braces) put_space();
-							else put_newline();
-						}
-						else
-						{
-							put_space();
-						}
-						
-						write_value(val);
+							if (val.size() > 0)
+							{
+								if (m_options.java_style_braces)
+								{
+									put_space();
+								}
+								else
+								{
+									put_newline();
+									put_indents();
+								}
+							}
+							else
+							{
+								put_space();
+							}
+							
+							write_value(val);
 
-						if (i != v.data.o->size() - 1)
-						{
-							m_os << ',';
+							if (i != v.data.o->size() - 1) m_os << ',';
 							put_newline();
 						}
-					}
 
-					--m_indents;
-					put_newline();
+						--m_indents;
+						put_indents();
+					}
 					m_os << '}';
 				}
 				break;
@@ -756,6 +760,13 @@ private:
 			if (m_options.pretty_print)
 			{
 				m_os << '\n';
+			}
+		}
+		
+		void put_indents()
+		{
+			if (m_options.pretty_print)
+			{
 				for (int i = 0; i < m_indents; ++i) m_os << m_options.indent;
 			}
 		}
