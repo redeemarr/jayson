@@ -634,22 +634,24 @@ private:
 		int               m_indents;
 		serialize_options m_options;
 
-		void write_string(std::string const* str)
+		void write_string(char const* str)
 		{
-			if (!str) return;
-			for (auto c : *str)
+			while (*str != '\0')
 			{
+				char c = *str++;
 				switch (c)
 				{
+				case '\\':
+					if (*str == 'u') { m_os << "\\u"; ++str; }
+					else m_os << "\\\\";
+					break;
 				case '"':  m_os << "\\\""; break;
-			//	case '/':  m_os << "\\/";  break;
-				case '\\': m_os << "\\\\"; break;
+				case '/':  m_os << "\\/";  break;
 				case '\b': m_os << "\\b";  break;
 				case '\f': m_os << "\\f";  break;
 				case '\n': m_os << "\\n";  break;
 				case '\r': m_os << "\\r";  break;
 				case '\t': m_os << "\\t";  break;
-			//	case '\u': break; // TODO: ...
 				default:   m_os << c;      break;
 				}
 			}
@@ -673,7 +675,7 @@ private:
 
 			case type::string:
 				m_os << '"';
-				write_string(v.data.s);
+				if (v.data.s) write_string(v.data.s->c_str());
 				m_os << '"';
 				break;
 
