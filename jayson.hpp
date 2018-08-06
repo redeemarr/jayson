@@ -643,7 +643,7 @@ private:
 				{
 				case '"':  m_os << "\\\""; break;
 			//	case '/':  m_os << "\\/";  break;
-			//	case '\\': m_os << "\\\\"; break;
+				case '\\': m_os << "\\\\"; break;
 				case '\b': m_os << "\\b";  break;
 				case '\f': m_os << "\\f";  break;
 				case '\n': m_os << "\\n";  break;
