@@ -799,9 +799,9 @@ template <> inline bool value::as<bool>() const
 	case type::null:    return  false;
 	case type::boolean: return  data.b;
 	case type::number:  return  data.n != 0;
-	case type::string:  return !data.s->empty();
-	case type::array:   return !data.a->empty();
-	case type::object:  return !data.o->empty();
+	case type::string:
+	case type::array:
+	case type::object:  return true;
 	}
 	return false;
 }
