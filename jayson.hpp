@@ -641,10 +641,7 @@ private:
 				char c = *str++;
 				switch (c)
 				{
-				case '\\':
-					if (*str == 'u') { m_os << "\\u"; ++str; }
-					else m_os << "\\\\";
-					break;
+				case '\\': m_os << "\\\\"; break;
 				case '"':  m_os << "\\\""; break;
 				case '/':  m_os << "\\/";  break;
 				case '\b': m_os << "\\b";  break;
