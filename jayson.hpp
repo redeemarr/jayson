@@ -509,7 +509,7 @@ private:
 					++source;
 					if (*source)
 					{
-						switch (*source++)
+						switch (*source)
 						{
 							case '"':  ss << '"'; break;
 							case '/':  ss << '/'; break;
@@ -519,9 +519,9 @@ private:
 							case 'n':  ss << '\n'; break;
 							case 'r':  ss << '\r'; break;
 							case 't':  ss << '\t'; break;
-							case 'u':  ss << "\\u"; break;
-							default: throw fail("invalid escaped symbol");
+							default: ss << '\\' << *source;
 						}
+						++source;
 					}
 					else
 					{
@@ -641,7 +641,7 @@ private:
 				char c = *str++;
 				switch (c)
 				{
-				case '\\': m_os << "\\\\"; break;
+				case '\\': m_os << (*str == 'u' ? "\\" : "\\\\"); break;
 				case '"':  m_os << "\\\""; break;
 				case '/':  m_os << "\\/";  break;
 				case '\b': m_os << "\\b";  break;
