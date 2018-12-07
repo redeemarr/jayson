@@ -303,6 +303,13 @@ private:
 		void clear() { m_size = 0; }
 		size_t capacity() const { return m_capacity; }
 		char const* data() const { return head; }
+
+		strbuf_t& operator << (char c)
+		{
+			resize(m_size + 1);
+			head[m_size++] = c;
+			return *this;
+		}
 		
 		void reserve(size_t cap)
 		{
@@ -313,10 +320,16 @@ private:
 			}
 		}
 		
-		void push_back(char c)
+		void write(char const* str, size_t len)
 		{
-			alloc_if_needed(m_size + 1);
-			head[m_size++] = c;
+			resize(m_size + len);
+			memcpy(&head[m_size], str, len);
+			m_size += len;
+		}
+		
+		void write(std::string const& str)
+		{
+			write(str.c_str(), str.length());
 		}
 
 	private:
@@ -325,7 +338,7 @@ private:
 		size_t m_capacity = 0;
 		size_t m_size = 0;
 		
-		void alloc_if_needed(size_t size)
+		void resize(size_t size)
 		{
 			if (size < m_capacity) return;
 			if (m_capacity == 0) m_capacity = 4096;
@@ -341,11 +354,11 @@ private:
 	
 		bool parse_file(char const* filename, value& result, std::string* errors)
 		{
-			std::ifstream stream(filename);
-			if (stream)
+			std::ifstream file(filename);
+			if (file)
 			{
 				std::stringstream ss;
-				ss << stream.rdbuf();
+				ss << file.rdbuf();
 				return parse_string(ss.str().data(), result, errors);
 			}
 			else
@@ -446,7 +459,7 @@ private:
 				
 				if (*source == '"')
 				{
-					std::string key = read_string();
+					char const* key = read_string();
 					skip_whitespaces();
 					if (*source++ == ':')
 					{
@@ -535,7 +548,7 @@ private:
 			return negate ? -result : result;
 		}
 		
-		void read_unicode_symbol(std::ostringstream& ss)
+		void read_unicode_symbol(strbuf_t& sb)
 		{
 			uint16_t code = 0;
 			for (int i=0; i<4; ++i)
@@ -551,38 +564,38 @@ private:
 			
 			if (code < 0x80)
 			{
-				ss << static_cast<char>(code);
+				sb << static_cast<char>(code);
 			}
 			else if (code < 0x800)
 			{
-				ss
+				sb
 				<< static_cast<char>(((code >> 6) & 0x1f) | 0xc0)
 				<< static_cast<char>((code & 0x3f) | 0x80);
 			}
 			else
 			{
-				ss
+				sb
 				<< static_cast<char>(((code >> 12) & 0x1f) | 0xe0)
 				<< static_cast<char>(((code >> 6) & 0x3f) | 0x80)
 				<< static_cast<char>((code & 0x3f) | 0x80);
 			}
 		}
 		
-		void read_escaped_symbol(std::ostringstream& ss)
+		void read_escaped_symbol(strbuf_t& sb)
 		{
 			if (*++source)
 			{
 				switch (*source)
 				{
-					case '"':  ss << '"';  break;
-					case '/':  ss << '/';  break;
-					case '\\': ss << '\\'; break;
-					case 'b':  ss << '\b'; break;
-					case 'f':  ss << '\f'; break;
-					case 'n':  ss << '\n'; break;
-					case 'r':  ss << '\r'; break;
-					case 't':  ss << '\t'; break;
-					case 'u':  read_unicode_symbol(ss); break;
+					case '"':  sb << '"';  break;
+					case '/':  sb << '/';  break;
+					case '\\': sb << '\\'; break;
+					case 'b':  sb << '\b'; break;
+					case 'f':  sb << '\f'; break;
+					case 'n':  sb << '\n'; break;
+					case 'r':  sb << '\r'; break;
+					case 't':  sb << '\t'; break;
+					case 'u':  read_unicode_symbol(sb); break;
 					default: throw fail("invalid escaped symbol");
 				}
 				++source;
@@ -593,18 +606,31 @@ private:
 			}
 		}
 		
-		std::string read_string()
+		char const* read_string()
 		{
-			thread_local std::ostringstream ss; // TODO: optimize?
-			ss.str("");
+			thread_local strbuf_t sb;
+			sb.clear();
 			++source;
 			while (*source)
 			{
-				switch (*source)
+				char const* end = source;
+				while (*end != '\\' && *end != '"' && *end != '\0') ++end;
+				
+				if (source != end)
 				{
-				case '\\': read_escaped_symbol(ss); break;
-				case '"': ++source; return ss.str();
-				default: ss << *source++;
+					sb.write(source, end - source);
+					source = end;
+				}
+				
+				if (*source == '\\')
+				{
+					read_escaped_symbol(sb);
+				}
+				else if (*source == '"')
+				{
+					++source;
+					sb << '\0';
+					return sb.data();
 				}
 			}
 			throw fail("unexpected end of string");
@@ -624,7 +650,7 @@ private:
 			m_options = options;
 			m_indents = 0;
 			write_value(v);
-			m_buf.push_back('\0');
+			m_buf << '\0';
 		}
 
 	private:
@@ -640,14 +666,14 @@ private:
 		int               m_indents;
 		serialize_options m_options;
 		
-		char const* number_to_string(double n, int precision)
+		void write_number(double n, int precision)
 		{
-			thread_local char buf[128];
-			if (n == 0) return "0";
-			else if (std::isinf(n)) return "inf";
-			else if (std::isnan(n)) return "nan";
+			if      (n == 0)        m_buf << '0';
+			else if (std::isinf(n)) m_buf.write("inf", 3);
+			else if (std::isnan(n)) m_buf.write("nan", 3);
 			else
 			{
+				thread_local char buf[128];
 				char* dst = buf;
 				
 				if (n < 0)
@@ -696,34 +722,23 @@ private:
 					}
 				}
 				
-				*dst = '\0';
-			}
-			return buf;
-		}
-		
-		void write_raw_string(char const* str)
-		{
-			while (*str)
-			{
-				m_buf.push_back(*str++);
+				m_buf.write(buf, dst - buf);
 			}
 		}
 
-		void write_string(std::string const* str)
+		void write_string(char const* str)
 		{
-			if (!str) return;
-			char const* p = str->c_str();
-			while (*p)
+			while (*str)
 			{
-				if ((*p & 0xc0) == 0xc0)
+				if ((*str & 0xc0) == 0xc0)
 				{
-					int count = (*p & 0xe0) == 0xe0 ? 2 : 1;
+					int count = (*str & 0xe0) == 0xe0 ? 2 : 1;
 					
-					uint16_t code = *p & 0x1f;
+					uint16_t code = *str & 0x1f;
 					for (int i=0; i<count; ++i)
 					{
-						if (!*++p) fail("invalid unicode symbol");
-						code = (code << 6) | (*p & 0x3f);
+						if (!*++str) fail("invalid unicode symbol");
+						code = (code << 6) | (*str & 0x3f);
 					}
 					
 					auto hex_sym = [](uint16_t code, int index)
@@ -733,34 +748,34 @@ private:
 						return c;
 					};
 					
-					m_buf.push_back('\\');
-					m_buf.push_back('u');
-					m_buf.push_back(hex_sym(code, 3));
-					m_buf.push_back(hex_sym(code, 2));
-					m_buf.push_back(hex_sym(code, 1));
-					m_buf.push_back(hex_sym(code, 0));
+					char chars[6] = { '\\', 'u' };
+					chars[2] = hex_sym(code, 3);
+					chars[3] = hex_sym(code, 2);
+					chars[4] = hex_sym(code, 1);
+					chars[5] = hex_sym(code, 0);
+					m_buf.write(chars, 6);
 				}
 				else
 				{
-					switch (*p)
+					switch (*str)
 					{
-					case '"':  m_buf.push_back('\\'); m_buf.push_back('\"'); break;
-					case '\\': m_buf.push_back('\\'); m_buf.push_back('\\'); break;
-					case '\b': m_buf.push_back('\\'); m_buf.push_back('b'); break;
-					case '\f': m_buf.push_back('\\'); m_buf.push_back('f'); break;
-					case '\n': m_buf.push_back('\\'); m_buf.push_back('n'); break;
-					case '\r': m_buf.push_back('\\'); m_buf.push_back('r'); break;
-					case '\t': m_buf.push_back('\\'); m_buf.push_back('t'); break;
-					default:   m_buf.push_back(*p); break;
+					case  '"': m_buf << '\\' << '\"'; break;
+					case '\\': m_buf << '\\' << '\\'; break;
+					case '\b': m_buf << '\\' << 'b';  break;
+					case '\f': m_buf << '\\' << 'f';  break;
+					case '\n': m_buf << '\\' << 'n';  break;
+					case '\r': m_buf << '\\' << 'r';  break;
+					case '\t': m_buf << '\\' << 't';  break;
+					default:   m_buf << *str;         break;
 					}
 				}
-				++p;
+				++str;
 			}
 		}
 		
 		void write_array(value const& v)
 		{
-			m_buf.push_back('[');
+			m_buf << '[';
 			if (!v.data.a->empty())
 			{
 				++m_indents;
@@ -770,19 +785,19 @@ private:
 				{
 					put_indents();
 					write_value(it);
-					if (&it != &v.data.a->back()) m_buf.push_back(',');
+					if (&it != &v.data.a->back()) m_buf << ',';
 					put_newline();
 				}
 				
 				--m_indents;
 				put_indents();
 			}
-			m_buf.push_back(']');
+			m_buf << ']';
 		}
 		
 		void write_object(value const& v)
 		{
-			m_buf.push_back('{');
+			m_buf << '{';
 			if (!v.data.o->empty())
 			{
 				++m_indents;
@@ -795,10 +810,9 @@ private:
 					auto const& val = it.second;
 					
 					put_indents();
-					m_buf.push_back('"');
-					write_raw_string(key.c_str());
-					m_buf.push_back('"');
-					m_buf.push_back(':');
+					m_buf << '"';
+					write_string(key.c_str());
+					m_buf << '"' << ':';
 
 					if (val.size() > 0)
 					{
@@ -819,14 +833,14 @@ private:
 
 					write_value(val);
 
-					if (i != v.data.o->size() - 1) m_buf.push_back(',');
+					if (i != v.data.o->size() - 1) m_buf << ',';
 					put_newline();
 				}
 
 				--m_indents;
 				put_indents();
 			}
-			m_buf.push_back('}');
+			m_buf << '}';
 		}
 
 		void write_value(value const& v)
@@ -834,21 +848,21 @@ private:
 			switch (v.type)
 			{
 			case type::null:
-				write_raw_string("null");
+				m_buf.write("null", 4);
 				break;
 
 			case type::number:
-				write_raw_string(number_to_string(v.data.n, m_options.number_precision));
+				write_number(v.data.n, m_options.number_precision);
 				break;
 
 			case type::boolean:
-				write_raw_string(v.data.b ? "true" : "false");
+				v.data.b ? m_buf.write("true", 4) : m_buf.write("false", 5);
 				break;
 
 			case type::string:
-				m_buf.push_back('"');
-				write_string(v.data.s);
-				m_buf.push_back('"');
+				m_buf << '"';
+				if (v.data.s) write_string(v.data.s->c_str());
+				m_buf << '"';
 				break;
 
 			case type::array:
@@ -863,22 +877,19 @@ private:
 
 		void put_space()
 		{
-			if (m_options.pretty_print) m_buf.push_back(' ');
+			if (m_options.pretty_print) m_buf << ' ';
 		}
 
 		void put_newline()
 		{
-			if (m_options.pretty_print)
-			{
-				m_buf.push_back('\n');
-			}
+			if (m_options.pretty_print) m_buf << '\n';
 		}
 		
 		void put_indents()
 		{
 			if (m_options.pretty_print)
 			{
-				for (int i = 0; i < m_indents; ++i) write_raw_string(m_options.indent.c_str());
+				for (int i = 0; i < m_indents; ++i) m_buf.write(m_options.indent);
 			}
 		}
 	};
