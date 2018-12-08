@@ -3,9 +3,7 @@
 #include <string>
 #include <vector>
 #include <unordered_map>
-#include <sstream>
 #include <fstream>
-#include <iomanip>
 #include <cstdlib>
 
 namespace json
@@ -354,12 +352,15 @@ private:
 	
 		bool parse_file(char const* filename, value& result, std::string* errors)
 		{
-			std::ifstream file(filename);
+			std::ifstream file(filename, std::ios::ate);
 			if (file)
 			{
-				std::stringstream ss;
-				ss << file.rdbuf();
-				return parse_string(ss.str().data(), result, errors);
+				std::size_t size = file.tellg();
+				std::vector<char> buf(size);
+				file.seekg(0, std::ios::beg);
+				file.read(buf.data(), size);
+				file.close();
+				return parse_string(buf.data(), result, errors);
 			}
 			else
 			{
@@ -383,9 +384,11 @@ private:
 				{
 					if (errors)
 					{
-						std::ostringstream oss;
-						oss << ex.what() << " at line " << line_num;
-						*errors = oss.str();
+						*errors = ex.what() + std::string(" at line ") + std::to_string(line_num);
+						
+					//	std::ostringstream oss;
+					//	oss << ex.what() << " at line " << line_num;
+					//	*errors = oss.str();
 					}
 					return false;
 				}
@@ -668,6 +671,8 @@ private:
 		
 		void write_number(double n, int precision)
 		{
+			double const ln10 = 2.30258509299404568402;
+
 			if      (n == 0)        m_buf << '0';
 			else if (std::isinf(n)) m_buf.write("inf", 3);
 			else if (std::isnan(n)) m_buf.write("nan", 3);
@@ -682,7 +687,7 @@ private:
 					n = -n;
 				}
 				
-				long p_f = exp(precision * M_LN10);// pow10(precision);
+				long p_f = exp(precision * ln10);// pow10(precision);
 				long integ = floor(n);
 				long fract = floor((n - integ) * p_f + 0.5);
 				
@@ -695,7 +700,7 @@ private:
 				if (integ > 0)
 				{
 					int log_i = log10(n);
-					long p_i = exp(log_i * M_LN10);//pow10(log_i);
+					long p_i = exp(log_i * ln10);//pow10(log_i);
 					for (int i=0; i<=log_i; ++i)
 					{
 						long dig = integ / p_i;
