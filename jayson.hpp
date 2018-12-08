@@ -385,10 +385,6 @@ private:
 					if (errors)
 					{
 						*errors = ex.what() + std::string(" at line ") + std::to_string(line_num);
-						
-					//	std::ostringstream oss;
-					//	oss << ex.what() << " at line " << line_num;
-					//	*errors = oss.str();
 					}
 					return false;
 				}
