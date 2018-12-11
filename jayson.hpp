@@ -695,7 +695,7 @@ private:
 				
 				if (integ > 0)
 				{
-					int log_i = log10(n);
+					int log_i = log10(integ);
 					long p_i = exp(log_i * ln10);//pow10(log_i);
 					for (int i=0; i<=log_i; ++i)
 					{
