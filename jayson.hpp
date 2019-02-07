@@ -3,8 +3,12 @@
 #include <string>
 #include <vector>
 #include <unordered_map>
+#include <sstream>
 #include <fstream>
+#include <iomanip>
 #include <cstdlib>
+#include <cstring>
+#include <cmath>
 
 namespace json
 {
@@ -246,7 +250,7 @@ public:
 	value& append(value&& v)
 	{
 		check_type(type::array);
-		data.a->emplace_back(v);
+		data.a->emplace_back(std::move(v));
 		return data.a->back();
 	}
 
@@ -352,15 +356,12 @@ private:
 	
 		bool parse_file(char const* filename, value& result, std::string* errors)
 		{
-			std::ifstream file(filename, std::ios::ate);
+			std::ifstream file(filename);
 			if (file)
 			{
-				std::size_t size = file.tellg();
-				std::vector<char> buf(size);
-				file.seekg(0, std::ios::beg);
-				file.read(buf.data(), size);
-				file.close();
-				return parse_string(buf.data(), result, errors);
+				std::stringstream ss;
+				ss << file.rdbuf();
+				return parse_string(ss.str().data(), result, errors);
 			}
 			else
 			{
@@ -384,7 +385,9 @@ private:
 				{
 					if (errors)
 					{
-						*errors = ex.what() + std::string(" at line ") + std::to_string(line_num);
+						std::ostringstream oss;
+						oss << ex.what() << " at line " << line_num;
+						*errors = oss.str();
 					}
 					return false;
 				}
@@ -493,7 +496,8 @@ private:
 					return;
 				}
 				
-				read_value(val.append());
+				val.data.a->emplace_back();
+				read_value(val.data.a->back());
 				skip_whitespaces();
 				if (*source == ',') ++source;
 			}
@@ -669,9 +673,8 @@ private:
 		{
 			double const ln10 = 2.30258509299404568402;
 
-			if      (n == 0)        m_buf << '0';
-			else if (std::isinf(n)) m_buf.write("inf", 3);
-			else if (std::isnan(n)) m_buf.write("nan", 3);
+			if (n == 0) m_buf << '0';
+			else if (std::isinf(n) || std::isnan(n)) m_buf.write("null", 4);
 			else
 			{
 				thread_local char buf[128];
