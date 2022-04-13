@@ -8,7 +8,7 @@ You can generate json data within your code like this:
 ```C++
 	json::value number = 12.34;
 	json::value string = "string";
-	json::value array = { number, string };
+	json::value array = { 777, number, string };
 	json::value object;
 	object("key") = array;
 ```	
