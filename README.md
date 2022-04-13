@@ -40,7 +40,6 @@ You can generate json data within your code like this:
 ```
 
 Known limitations and pitfalls:
-- weird things may happen due to multiple type-cast operators. be careful
 - some exotic bson types are not supported
 - implicit cast from json::value to std::string using assignment operator won't work. workaround: explicitly cast like this:
 ```C++
