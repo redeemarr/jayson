@@ -13,61 +13,119 @@
 namespace json
 {
 
+using fail    = std::runtime_error;
+using bytes_t = std::vector<char>;
+
 struct serialize_options
 {
-	bool        pretty_print;
-	bool        java_style_braces;
-	std::string indent;
-	int         number_precision;
-
-	serialize_options(bool pretty_print=true, bool java_style_braces=false, std::string const& indent="  ", int number_precision=2)
-	: pretty_print(pretty_print)
-	, java_style_braces(java_style_braces)
-	, indent(indent)
-	, number_precision(number_precision)
-	{}
+	bool        pretty_print      = true;
+	bool        java_style_braces = false;
+	bool        utf8_escaping     = true;
+	std::string indent            = "  ";
+	int         number_precision  = 2;
 };
 
 enum class type : char
 {
-	null    = ' ',
-	boolean = 'b',
-	number  = 'n',
-	string  = 's',
-	array   = 'a',
-	object  = 'o'
+	null     = ' ',
+	boolean  = 'b',
+	n_double = 'f',
+	n_int32  = 'i',
+	n_int64  = 'l',
+	n_uint64 = 'u',
+	string   = 's',
+	binary   = 'x',
+	array    = 'a',
+	object   = 'o'
 };
+
+inline char const* type_string(type t)
+{
+	switch (t)
+	{
+		case type::null:     return "null";
+		case type::boolean:  return "boolean";
+		case type::n_double: return "double";
+		case type::n_int32:  return "int32";
+		case type::n_int64:  return "int64";
+		case type::n_uint64: return "uint64";
+		case type::string:   return "string";
+		case type::binary:   return "binary";
+		case type::array:    return "array";
+		case type::object:   return "object";
+		default:             return "<unknown>";
+	}
+}
 
 class value
 {
-	friend class tests; // FIXME: get rid
-	friend std::ostream& operator << (std::ostream&, value const&);
-
+friend class tests;
 public:
 
-	using keyval_t  = std::pair<std::string, value>;
-	using keyvals_t = std::vector<keyval_t>;
+	using obj_map_t   = std::unordered_map<std::string, value>;
+	using obj_order_t = std::vector<obj_map_t::iterator>;
+	
+	bool from_string(char const* str, std::string* errors = nullptr)
+	{
+		json_reader r;
+		return r.parse_string(str, *this, errors);
+	}
 
-	bool parse_string(char const* str) { reader r; return r.parse_string(str, *this, nullptr); }
-	bool parse_string(char const* str, std::string& errors) { reader r; return r.parse_string(str, *this, &errors); }
-	bool parse_file(char const* filename) { reader r; return r.parse_file(filename, *this, nullptr); }
-	bool parse_file(char const* filename, std::string& errors) { reader r; return r.parse_file(filename, *this, &errors); }
-
-	char const* serialize(serialize_options const& options = serialize_options()) const
+	char const* to_string(serialize_options const& options = serialize_options()) const
 	{
 		thread_local strbuf_t buf;
-		writer w(buf);
+		json_writer w(buf);
 		w.write(*this, options);
 		return buf.data();
 	}
-
-	bool serialize(char const* filename, serialize_options const& options = serialize_options()) const
+	
+	bool from_json_file(char const* filename, std::string* errors = nullptr)
 	{
-		char const* str = serialize(options);
+		json_reader r;
+		return r.parse_file(filename, *this, errors);
+	};
+
+	bool to_json_file(char const* filename, serialize_options const& options = serialize_options()) const
+	{
 		std::ofstream ofs(filename);
 		if (ofs)
 		{
-			ofs << str;
+			ofs << to_string(options);
+			return true;
+		}
+		else
+		{
+			return false;
+		}
+		return false;
+	}
+
+	bool from_bytes(bytes_t const& data, std::string* errors = nullptr)
+	{
+		bson_reader r;
+		return r.parse_data(data, *this, errors);
+	}
+	
+	bytes_t to_bytes() const
+	{
+		bson_writer w;
+		w.write_value(nullptr, *this);
+		return w.data;
+	}
+
+	bool from_bson_file(char const* filename, std::string* errors = nullptr)
+	{
+		bson_reader r;
+		return r.parse_file(filename, *this, errors);
+	}
+
+	bool to_bson_file(char const* filename, serialize_options const& options = serialize_options()) const
+	{
+		std::ofstream ofs(filename);
+		if (ofs)
+		{
+			bytes_t data = to_bytes();
+			ofs.write(data.data(), data.size());
 			return true;
 		}
 		else
@@ -85,14 +143,6 @@ private:
 	
 	class object_t
 	{
-	private:
-	
-		// TODO: optimize (2 strings for key)
-		using map_t = std::unordered_map<std::string, std::size_t>;
-	
-		keyvals_t values;
-		map_t     map;
-		
 	public:
 		
 		void remove(char const* key)
@@ -100,25 +150,24 @@ private:
 			auto it = map.find(key);
 			if (it != map.end())
 			{
-				std::size_t index = it->second;
-				for (auto& pair : map)
-				{
-					if (pair.second > index) --pair.second;
-				}
-				values.erase(values.begin() + index);
+				order.erase(std::find(order.begin(), order.end(), it));
 				map.erase(it);
 			}
 		}
 		
-		bool empty() const { return values.empty(); }
-		std::size_t size() const { return values.size(); }
-		keyval_t const& operator [] (std::size_t index) const { return values[index]; }
-		keyvals_t const& get_pairs() const { return values; }
+		bool empty() const { return map.empty(); }
+		std::size_t size() const { return map.size(); }
+		obj_order_t const& get_order() const { return order; }
+		
+		bool has_key(std::string const& key) const
+		{
+			return map.find(key) != map.end();
+		}
 
 		value const& get_const(std::string const& key) const
 		{
 			auto it = map.find(key);
-			return it != map.end() ? values[it->second].second : value::null();
+			return it != map.end() ? it->second : value::null();
 		}
 
 		value& get(std::string const& key)
@@ -126,24 +175,33 @@ private:
 			auto it = map.find(key);
 			if (it != map.end())
 			{
-				return values[it->second].second;
+				return it->second;
 			}
 			else
 			{
-				map.emplace(key, values.size());
-				values.emplace_back(key, value());
-				return values.back().second;
+				auto at = map.emplace(key, value()).first;
+				order.push_back(at);
+				return at->second;
 			}
 		}
+		
+	private:
+	
+		obj_order_t order;
+		obj_map_t   map;
 	};
 
 	union
 	{
 		bool      b;
-		double    n;
+		double    d;
+		int32_t   i;
+		int64_t   l;
+		uint64_t  u;
 		string_t* s;
 		array_t*  a;
 		object_t* o;
+		bytes_t*  x;
 	} data;
 	
 	type type;
@@ -154,30 +212,33 @@ public:
 	
 	~value()
 	{
-		if (type == type::string || type == type::array || type == type::object)
+		switch (type)
 		{
-			switch (type)
-			{
-				case type::string: delete data.s; break;
-				case type::array:  delete data.a; break;
-				case type::object: delete data.o; break;
-				case type::null:
-				case type::boolean:
-				case type::number:;
-			}
+			case type::string: delete data.s; break;
+			case type::array:  delete data.a; break;
+			case type::object: delete data.o; break;
+			case type::binary: delete data.x; break;
+			default:;
 		}
 	}
 
 	// MARK: constructors
-	value()                     : value(type::null)    {}
-	value(value const& v)       : value(type::null)    { *this = v; }
-	value(value&& v) noexcept   : value(type::null)    { std::swap(type, v.type); std::swap(data, v.data); }
-	value(bool v)               : value(type::boolean) {  data.b = v; }
-	value(char const* v)        : value(type::string)  { *data.s = v; }
-	value(std::string const& v) : value(type::string)  { *data.s = v; }
-	value(ilist_t const& list)  : value(type::array)   { *data.a = list; }
-	value(ilist_t&& list)       : value(type::array)   { *data.a = list; }
-	template <typename T> value(T const& t) : value(type::number) { data.n = t; }
+	value()                     : value(type::null)     {}
+	value(value const& v)       : value(type::null)     { *this = v; }
+	value(value&& v) noexcept   : value(type::null)     { std::swap(type, v.type); std::swap(data, v.data); }
+	value(char const* v)        : value(type::string)   { *data.s = v; }
+	value(std::string const& v) : value(type::string)   { *data.s = v; }
+	value(bytes_t const& v)     : value(type::binary)   { *data.x = v; }
+	value(ilist_t const& list)  : value(type::array)    { *data.a = list; }
+	value(ilist_t&& list)       : value(type::array)    { *data.a = list; }
+
+	template <typename T, typename std::enable_if<std::is_same<T, bool>::value, bool>::type = true>                                                               value(T v) : value(type::boolean)  { data.b = v; } // bool
+	template <typename T, typename std::enable_if<std::is_integral<T>::value && sizeof(T) < sizeof(int32_t) && !std::is_same<T, bool>::value, bool>::type = true> value(T v) : value(type::n_int32)  { data.i = v; } // ints less than sizeof(int32) -> int32
+	template <typename T, typename std::enable_if<std::is_integral<T>::value && sizeof(T) == sizeof(int32_t) && std::is_signed<T>::value, bool>::type = true>     value(T v) : value(type::n_int32)  { data.i = v; } // int32
+	template <typename T, typename std::enable_if<std::is_integral<T>::value && sizeof(T) == sizeof(int32_t) && std::is_unsigned<T>::value, bool>::type = true>   value(T v) : value(type::n_uint64) { data.u = v; } // uint32 -> uint64
+	template <typename T, typename std::enable_if<std::is_integral<T>::value && sizeof(T) == sizeof(int64_t) && std::is_signed<T>::value, bool>::type = true>     value(T v) : value(type::n_int64)  { data.l = v; } // int64
+	template <typename T, typename std::enable_if<std::is_integral<T>::value && sizeof(T) == sizeof(int64_t) && std::is_unsigned<T>::value, bool>::type = true>   value(T v) : value(type::n_uint64) { data.u = v; } // uint64
+	template <typename T, typename std::enable_if<std::is_floating_point<T>::value && sizeof(T) <= sizeof(double), bool>::type = true>                            value(T v) : value(type::n_double) { data.d = v; } // float/double
 
 	value(enum type t) : type(t)
 	{
@@ -186,6 +247,7 @@ public:
 			case type::string: data.s = new string_t(); break;
 			case type::array:  data.a = new array_t();  break;
 			case type::object: data.o = new object_t(); break;
+			case type::binary: data.x = new bytes_t();  break;
 			default:;
 		}
 	}
@@ -196,41 +258,49 @@ public:
 		check_type(v.type);
 		switch (type)
 		{
-			case type::boolean: data.b =  v.data.b; break;
-			case type::number:  data.n =  v.data.n; break;
-			case type::string: *data.s = *v.data.s; break;
-			case type::array:  *data.a = *v.data.a; break;
-			case type::object: *data.o = *v.data.o; break;
+			case type::boolean : data.b  =  v.data.b; break;
+			case type::string  : *data.s = *v.data.s; break;
+			case type::array   : *data.a = *v.data.a; break;
+			case type::object  : *data.o = *v.data.o; break;
+			case type::binary  : *data.x = *v.data.x; break;
+			case type::n_double: data.d  =  v.data.d; break;
+			case type::n_int32 : data.i  =  v.data.i; break;
+			case type::n_int64 : data.l  =  v.data.l; break;
+			case type::n_uint64: data.u  =  v.data.u; break;
 			case type::null:;
 		}
 		return *this;
 	}
-
-	value& operator = (value&& v)                 { std::swap(type, v.type); std::swap(data, v.data); return *this; }
-	value& operator = (ilist_t const& list)       { check_type(type::array);  *data.a = list; return *this; }
-	value& operator = (bool b)                    { check_type(type::boolean); data.b = b;    return *this; }
-	value& operator = (char const* str)           { check_type(type::string); *data.s = str;  return *this; }
-	value& operator = (std::string const& str)    { check_type(type::string); *data.s = str;  return *this; }
-	template <typename T> value& operator = (T n) { check_type(type::number);  data.n = n;    return *this; }
+	
+	value& operator = (value&& v) { std::swap(type, v.type); std::swap(data, v.data); return *this; }
 	
 	// MARK: type checks
-	bool is(enum type atype) const { return type == atype; }
-	bool is_null()   const { return type == type::null;   }
-	bool is_number() const { return type == type::number; }
-	bool is_string() const { return type == type::string; }
-	bool is_array()  const { return type == type::array;  }
-	bool is_object() const { return type == type::object; }
+	bool is(enum type atype) const { return type == atype;  }
+	bool is_null()   const { return type == type::null;     }
+	bool is_bool()   const { return type == type::boolean;  }
+	bool is_number() const { return type == type::n_double || type == type::n_int32 || type == type::n_int64 || type == type::n_uint64;  }
+	bool is_double() const { return type == type::n_double; }
+	bool is_int32()  const { return type == type::n_int32;  }
+	bool is_int64()  const { return type == type::n_int64;  }
+	bool is_uint64() const { return type == type::n_uint64; }
+	bool is_string() const { return type == type::string;   }
+	bool is_array()  const { return type == type::array;    }
+	bool is_object() const { return type == type::object;   }
+	bool is_binary() const { return type == type::binary;   }
 
 	// MARK: type conversions
-	template <typename T> T as() const { return type == type::number ? data.n : 0; }
 	template <typename T> operator T () const { return as<T>(); }
-	
-	// MARK: comparison operators
-	bool operator == (char const* s)        const { return (type == type::string && s) ? *data.s == s : false; }
-	bool operator == (std::string const& s) const { return  type == type::string       ? *data.s == s : false; }
-	
-	template <typename T> bool operator == (T const& v) const { return static_cast<T>(*this) == v; }
-	template <typename T> bool operator != (T const& v) const { return !(*this == v); }
+	template <typename T> T as() const // default behavior is number, explicit specializations for other types
+	{
+		switch (type)
+		{
+		case type::n_double: return data.d;
+		case type::n_int32:  return data.i;
+		case type::n_int64:  return data.l;
+		case type::n_uint64: return data.u;
+		default: return 0;
+		}
+	}
 
 	std::size_t size() const
 	{
@@ -268,19 +338,24 @@ public:
 	}
 	
 	// MARK: object access
-	keyvals_t const& get_pairs() const // FIXME: rework
+	obj_order_t const& object() const
 	{
-		static keyvals_t empty;
-		return type == type::object ? data.o->get_pairs() : empty;
+		static obj_order_t empty;
+		return type == type::object ? data.o->get_order() : empty;
+	}
+	
+	bool has_key(std::string const& key) const
+	{
+		return type == type::object ? data.o->has_key(key) : false;
 	}
 	
 	value const& operator () (std::string const& key) const { return type == type::object ? data.o->get_const(key) : null(); }
 	value&       operator () (std::string const& key)       { check_type(type::object); return data.o->get(key); }
 	
-	void remove(char const* key) { if (type == type::object) data.o->remove(key); }
-	void remove(std::string const& key) { remove(key.c_str()); }
+	void remove_key(char const* key) { if (type == type::object) data.o->remove(key); }
+	void remove_key(std::string const& key) { remove_key(key.c_str()); }
 	
-	void remove(std::size_t index)
+	void remove_key(std::size_t index)
 	{
 		if (type == type::array) data.a->erase(data.a->begin() + index);
 	}
@@ -348,9 +423,11 @@ private:
 			head = (char*)realloc(head, m_capacity);
 		}
 	};
+	
+#pragma mark -
 
-	// MARK: parser
-	class reader
+	// MARK: json parser
+	class json_reader
 	{
 	public:
 	
@@ -394,6 +471,7 @@ private:
 			}
 			else
 			{
+				if (errors) *errors = "no data";
 				result = value();
 				return false;
 			}
@@ -401,10 +479,9 @@ private:
 		
 	private:
 		
-		using fail = std::runtime_error;
-		
 		char const* source;
 		std::size_t line_num;
+		strbuf_t    strbuf;
 		
 		void skip_whitespaces()
 		{
@@ -428,7 +505,7 @@ private:
 				case 'n': skip_check("null");  val = value(); break;
 				case 't': skip_check("true");  val = true;    break;
 				case 'f': skip_check("false"); val = false;   break;
-				default:  val = read_number(); break;
+				default:  read_number(val); break;
 			}
 		}
 		
@@ -504,51 +581,76 @@ private:
 			throw fail("unexpected end of array");
 		}
 		
-		double read_number()
+		void read_number(value& val)
 		{
-			bool negate = false;
-			auto c = *source;
-			if      (c == '-')             { negate = true;  ++source; }
+			bool is_float = false;
+			double sign = 1.0;
+			char c = *source;
+			if      (c == '-')             { sign = -1.0; ++source; }
 			else if (c == '+')             { ++source; }
 			else if (c >= '0' && c <= '9') { }
 			else throw fail("invalid numeric value");
-			
+
+			int shift = 0;
 			double result = 0;
-			while (*source && *source != '.' && *source != 'e' && *source != 'E' && *source >= '0' && *source <= '9')
+			while (*source >= '0' && *source <= '9')
 			{
-				result = result * 10 + (*source++ - '0');
+				result = result * 10.0 + (*source++ - '0');
 			}
-			
-			if (*source && *source == '.')
+
+			if (*source == '.')
 			{
+				is_float = true;
 				++source;
-				double mult = 0.1f;
-				while (*source && *source != 'e' && *source != 'E' && *source >= '0' && *source <= '9')
+				while (*source >= '0' && *source <= '9')
 				{
-					result += (*source++ - '0') * mult;
-					mult *= 0.1f;
+					result = result * 10.0 + (*source++ - '0');
+					--shift;
 				}
 			}
-			
-			if (*source && (*source == 'e' || *source == 'E'))
+
+			if (*source == 'e' || *source == 'E')
 			{
+				is_float = true;
 				++source;
-				double exp_mult;
-				if      (*source == '-') { exp_mult = 0.1f; ++source; }
-				else if (*source == '+') { exp_mult = 10;   ++source; }
-				else                     { exp_mult = 10; }
+				int exp_sign = 1;
+				if      (*source == '-') { ++source; exp_sign = -1; }
+				else if (*source == '+') { ++source; }
 				
-				std::size_t exp = 0;
-				while (*source && *source >= '0' && *source <= '9')
+				int exponent = 0;
+				while (*source >= '0' && *source <= '9')
 				{
-					exp = exp * 10 + (*source++ - '0');
+					exponent = exponent * 10 + (*source++ - '0');
 				}
 				
-				if (exp > 308) exp = 308;
-				while (exp-- != 0) result *= exp_mult;
+				shift += exponent * exp_sign;
 			}
 			
-			return negate ? -result : result;
+			if      (shift < 0) while (shift++ != 0) result *= 0.1;
+			else if (shift > 0) while (shift-- != 0) result *= 10.0;
+			
+			if (is_float)
+			{
+				val = result * sign;
+			}
+			else
+			{
+				if (result < 0x7FFFFFFF)
+				{
+					val = static_cast<int>(result * sign);
+				}
+				else
+				{
+					if (sign < 0)
+					{
+						val = static_cast<int64_t>(result * sign);
+					}
+					else
+					{
+						val = static_cast<uint64_t>(result);
+					}
+				}
+			}
 		}
 		
 		void read_unicode_symbol(strbuf_t& sb)
@@ -611,8 +713,7 @@ private:
 		
 		char const* read_string()
 		{
-			thread_local strbuf_t sb;
-			sb.clear();
+			strbuf.clear();
 			++source;
 			while (*source)
 			{
@@ -621,31 +722,33 @@ private:
 				
 				if (source != end)
 				{
-					sb.write(source, end - source);
+					strbuf.write(source, end - source);
 					source = end;
 				}
 				
 				if (*source == '\\')
 				{
-					read_escaped_symbol(sb);
+					read_escaped_symbol(strbuf);
 				}
 				else if (*source == '"')
 				{
 					++source;
-					sb << '\0';
-					return sb.data();
+					strbuf << '\0';
+					return strbuf.data();
 				}
 			}
 			throw fail("unexpected end of string");
 		}
 	};
 
-	// MARK: serializer
-	class writer
+#pragma mark -
+
+	// MARK: json serializer
+	class json_writer
 	{
 	public:
 
-		writer(strbuf_t& buf) : m_buf(buf) {}
+		json_writer(strbuf_t& buf) : m_buf(buf) {}
 
 		void write(value const& v, serialize_options const& options = serialize_options())
 		{
@@ -657,19 +760,17 @@ private:
 		}
 
 	private:
-		
-		using fail = std::runtime_error;
 
-		writer(writer const&) = delete;
-		writer(writer&&) = delete;
-		writer& operator = (writer const&) = delete;
-		writer& operator = (writer&&) = delete;
+		json_writer(json_writer const&) = delete;
+		json_writer(json_writer&&) = delete;
+		json_writer& operator = (json_writer const&) = delete;
+		json_writer& operator = (json_writer&&) = delete;
 
 		strbuf_t&         m_buf;
 		int               m_indents;
 		serialize_options m_options;
 		
-		void write_number(double n, int precision)
+		void write_float(double n, int precision)
 		{
 			double const ln10 = 2.30258509299404568402;
 
@@ -729,12 +830,37 @@ private:
 				m_buf.write(buf, dst - buf);
 			}
 		}
+		
+		template <typename T> void write_integer(T n)
+		{
+			thread_local char buf[32] = { 0 };
+
+			bool neg = false;
+			if (n < 0)
+			{
+				neg = true;
+				n = -n;
+			}
+			
+			char* end = buf + sizeof(buf) - 1;
+			char* ptr = end;
+			
+			do
+			{
+				*ptr-- = '0' + n % 10;
+				n = n / 10;
+			} while (n != 0);
+			
+			if (neg) *ptr-- = '-';
+			
+			m_buf.write(ptr + 1, end - ptr);
+		}
 
 		void write_string(char const* str)
 		{
 			while (*str)
 			{
-				if ((*str & 0xc0) == 0xc0)
+				if (m_options.utf8_escaping && (*str & 0xc0) == 0xc0)
 				{
 					int count = (*str & 0xe0) == 0xe0 ? 2 : 1;
 					
@@ -807,11 +933,11 @@ private:
 				++m_indents;
 				put_newline();
 				
-				for (std::size_t i=0; i<v.data.o->size(); ++i)
+				size_t index = 0;
+				for (auto const& it : v.data.o->get_order())
 				{
-					auto const& it = (*v.data.o)[i];
-					auto const& key = it.first;
-					auto const& val = it.second;
+					auto const& key = it->first;
+					auto const& val = it->second;
 					
 					put_indents();
 					m_buf << '"';
@@ -836,8 +962,9 @@ private:
 					}
 
 					write_value(val);
+					
+					if (index++ != v.data.o->size() - 1) m_buf << ',';
 
-					if (i != v.data.o->size() - 1) m_buf << ',';
 					put_newline();
 				}
 
@@ -854,9 +981,21 @@ private:
 			case type::null:
 				m_buf.write("null", 4);
 				break;
-
-			case type::number:
-				write_number(v.data.n, m_options.number_precision);
+				
+			case type::n_double:
+				write_float(v.data.d, m_options.number_precision);
+				break;
+				
+			case type::n_int32:
+				write_integer(v.data.i);
+				break;
+				
+			case type::n_int64:
+				write_integer(v.data.l);
+				break;
+				
+			case type::n_uint64:
+				write_integer(v.data.u);
 				break;
 
 			case type::boolean:
@@ -875,6 +1014,10 @@ private:
 
 			case type::object:
 				write_object(v);
+				break;
+				
+			case type::binary:
+				write_string("<binary>");
 				break;
 			}
 		}
@@ -897,9 +1040,313 @@ private:
 			}
 		}
 	};
+	
+#pragma mark -
+	
+	enum bson_t
+	{
+		bson_double   = 0x01,
+		bson_string   = 0x02,
+		bson_document = 0x03,
+		bson_array    = 0x04,
+		bson_binary   = 0x05,
+		// Deprecated   0x06 - Undefined (value)
+		//              0x07 - ObjectId
+		bson_bool     = 0x08,
+		bson_utc_time = 0x09,
+		bson_null     = 0x0a,
+		//              0x0b - regex (cstring, cstring)
+		// Deprecated   0x0c - DBPointer
+		//              0x0d - JavaScript code
+		// Deprecated   0x0e - Symbol
+		// Deprecated   0x0f - JavaScript code w/ scope
+		bson_int32    = 0x10,
+		bson_uint64   = 0x11,
+		bson_int64    = 0x12,
+		//              0x13 - 	128-bit decimal floating point
+		//              0xff - 	Min key
+		//              0x7f - 	Max key
+	};
+	
+	// MARK: bson parser
+	class bson_reader
+	{
+	public:
+	
+		bool parse_file(char const* filename, value& result, std::string* errors)
+		{
+			std::ifstream file(filename, std::ios::binary | std::ios::ate);
+			if (file)
+			{
+				thread_local bytes_t data;
+				data.resize(file.tellg());
+				file.seekg(0, std::ios::beg);
+				file.read(data.data(), data.size());
+				return parse_data(data, result, errors);
+			}
+			else
+			{
+				if (errors) *errors = "failed to load file '" + std::string(filename) + "'";
+				return false;
+			}
+		}
+		
+		bool parse_data(bytes_t const& data, value& result, std::string* errors)
+		{
+			if (!data.empty())
+			{
+				ptr = data.data();
+				end = ptr + data.size();
+				result = value(type::object);
+				try
+				{
+					read_document(result);
+				}
+				catch (std::exception const& ex)
+				{
+					if (errors) *errors = ex.what();
+					return false;
+				}
+				return true;
+			}
+			else
+			{
+				if (errors) *errors = "no data";
+				result = value();
+				return false;
+			}
+		}
+		
+	private:
+		
+		char const* ptr;
+		char const* end;
+		
+		struct pair_t
+		{
+			uint8_t type;
+			char const* key;
+		};
+		
+		bool read_pair(pair_t& pair)
+		{
+			pair.type = read<uint8_t>();
+			if (pair.type == 0) return false;
+			pair.key = fetch_string();
+			return true;
+		}
+		
+		void read_value(uint8_t type, value& tmp)
+		{
+			switch (type)
+			{
+				case bson_double:   tmp = read<double>();    break;
+				case bson_int32:    tmp = read<int32_t>();   break;
+				case bson_int64:
+				case bson_utc_time: tmp = read<int64_t>();   break;
+				case bson_uint64:   tmp = read<uint64_t>();  break;
+				case bson_bool:     tmp = read<uint8_t>() > 0 ? true : false; break;
+				case bson_null:     tmp = value(type::null); break;
+				
+				case bson_string:
+					(void)read<int32_t>(); // string length
+					tmp = fetch_string();
+					break;
+				
+				case bson_document:
+					tmp = value(type::object);
+					read_document(tmp);
+					break;
+				
+				case bson_array:
+					tmp = value(type::array);
+					read_array(tmp);
+					break;
+				
+				case bson_binary:
+					read_binary(tmp);
+					break;
+				
+				default: throw fail("unsupported bson type id: " + std::to_string(type)); break;
+			}
+		}
+		
+		void read_binary(value& val)
+		{
+			val = value(type::binary);
+			size_t size = read<int32_t>();
+			auto& data = *val.data.x;
+			data.resize(size);
+			(void)read<uint8_t>(); // subtype
+			check_end(size);
+			memcpy(data.data(), ptr, data.size());
+			ptr += size;
+		}
+		
+		void read_document(value& val)
+		{
+			auto size = read<uint32_t>(); (void)size;
+			pair_t pair;
+			while (read_pair(pair))
+			{
+				read_value(pair.type, val(pair.key));
+			}
+		}
+		
+		void read_array(value& val)
+		{
+			auto size = read<uint32_t>(); (void)size;
+			pair_t pair;
+			while (read_pair(pair))
+			{
+				val.data.a->emplace_back();
+				read_value(pair.type, val.data.a->back());
+			}
+		}
+		
+		template <typename T> T read()
+		{
+			check_end(sizeof(T));
+			T* t = (T*)ptr;
+			ptr += sizeof(T);
+			return *t;
+		}
+		
+		char const* fetch_string()
+		{
+			size_t len = strlen(ptr);
+			check_end(len);
+			char const* str = ptr;
+			ptr += len + 1;
+			return str;
+		}
+		
+		void check_end(size_t pos)
+		{
+			if (ptr + pos > end) throw fail("end of data reached");
+		}
+	};
+
+#pragma mark -
+
+	// MARK: bson serializer
+	struct bson_writer
+	{
+		bytes_t data;
+		
+		void write_value(char const* key, value const& val)
+		{
+			switch (val.type)
+			{
+				case type::object:
+				{
+					if (key)
+					{
+						write<uint8_t>(bson_document);
+						write_string(key);
+					}
+					size_t beg = data.size();
+					write<uint32_t>(0); // len
+					for (auto const& it : val.data.o->get_order())
+					{
+						write_value(it->first.c_str(), it->second);
+					}
+					write<uint8_t>(0x00);
+					uint32_t len = static_cast<uint32_t>(data.size() - beg);
+					write_at(beg, len);
+					break;
+				}
+				
+				case type::array:
+				{
+					write<uint8_t>(bson_array);
+					write_string(key);
+					size_t beg = data.size();
+					write<uint32_t>(0); // len
+					for (size_t i=0; i<val.size(); ++i)
+					{
+						write_value(std::to_string(i).c_str(), val[i]);
+					}
+					write<uint8_t>(0x00);
+					uint32_t len = data.size() - beg;
+					write_at(beg, len);
+					break;
+				}
+				
+				case type::n_double:
+					write<uint8_t>(bson_double);
+					write_string(key);
+					write(&val.data.d, sizeof(double));
+					break;
+				
+				case type::n_int32:
+					write<uint8_t>(bson_int32);
+					write_string(key);
+					write(&val.data.i, sizeof(int32_t));
+					break;
+				
+				case type::n_int64:
+					write<uint8_t>(bson_int64);
+					write_string(key);
+					write(&val.data.l, sizeof(int32_t));
+					break;
+				
+				case type::n_uint64:
+					write<uint8_t>(bson_uint64);
+					write_string(key);
+					write(&val.data.u, sizeof(int32_t));
+					break;
+				
+				case type::boolean:
+					write<uint8_t>(bson_bool);
+					write_string(key);
+					write<uint8_t>(val.data.b ? 1 : 0);
+					break;
+				
+				case type::string:
+					write<uint8_t>(bson_string);
+					write_string(key);
+					write<uint32_t>(val.data.s->length() + 1);
+					write_string(val.data.s->c_str());
+					break;
+				
+				case type::binary:
+					write<uint8_t>(bson_binary);
+					write_string(key);
+					write<int32_t>(val.data.x->size());
+					write<uint8_t>(0x00); // subtype
+					write(val.data.x->data(), val.data.x->size());
+					break;
+				
+				case type::null:
+					write<uint8_t>(bson_null);
+					break;
+				
+				default:
+					throw fail(std::string("unsupported type ") + type_string(val.type));
+					break;
+			}
+		}
+		
+		void write(void const* ptr, size_t size)
+		{
+			size_t prev = data.size();
+			data.resize(data.size() + size);
+			memcpy(data.data() + prev, ptr, size);
+		}
+		
+		template <typename T> void write(T const& t) { write(&t, sizeof(T)); }
+		void write_string(char const* str) { write(str, strlen(str) + 1); }
+		void write_at(size_t at, uint32_t val) { *((uint32_t*)(data.data() + at)) = val; }
+	};
 };
 
 // MARK: type conversion specializations
+template <> inline bool value::as<bool>() const
+{
+	return type == type::boolean ? data.b : false;
+}
+
 template <> inline char const* value::as<char const*>() const
 {
 	return type == type::string ? data.s->c_str() : "";
@@ -916,33 +1363,15 @@ template <> inline std::string const& value::as<std::string const&>() const
 	return type == type::string ? *data.s : empty;
 }
 
-template <> inline bool value::as<bool>() const
+template <> inline bytes_t const& value::as<bytes_t const&>() const
 {
-	switch (type)
-	{
-	case type::null:    return  false;
-	case type::boolean: return  data.b;
-	case type::number:  return  data.n != 0;
-	case type::string:  return !data.s->empty();
-	case type::array:   return !data.a->empty();
-	case type::object:  return !data.o->empty();
-	}
-	return false;
+	static bytes_t empty;
+	return type == type::binary ? *data.x : empty;
 }
 
-// MARK: helpers
-inline std::ostream& operator << (std::ostream& ss, value const& val)
+template <> inline bytes_t value::as<bytes_t>() const
 {
-	switch (val.type)
-	{
-		case type::null:    ss << "null";                break;
-		case type::boolean: ss << val.as<bool>();        break;
-		case type::number:  ss << val.as<double>();      break;
-		case type::string:  ss << val.as<std::string>(); break;
-		case type::array:   ss << "array";               break;
-		case type::object:  ss << "object";              break;
-	}
-	return ss;
+	return as<bytes_t const&>();
 }
 
 }

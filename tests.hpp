@@ -1,6 +1,6 @@
 #pragma once
 
-#define TEST_LEAKS 0
+#define TEST_LEAKS 1
 
 namespace json
 {

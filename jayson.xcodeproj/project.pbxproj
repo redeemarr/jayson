@@ -8,7 +8,7 @@
 
 /* Begin PBXBuildFile section */
 		26359F4D1C5BF3F800EA5173 /* example.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 26359F4B1C5BF3F800EA5173 /* example.cpp */; };
-		26359F4E1C5BF3F800EA5173 /* tests.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 26359F4C1C5BF3F800EA5173 /* tests.cpp */; };
+		26B691B128070238007E4B2E /* tests.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 26B691AF28070238007E4B2E /* tests.cpp */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXCopyFilesBuildPhase section */
@@ -24,12 +24,12 @@
 /* End PBXCopyFilesBuildPhase section */
 
 /* Begin PBXFileReference section */
-		26359F4A1C5BF3F800EA5173 /* tests.hpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.h; path = tests.hpp; sourceTree = "<group>"; };
 		26359F4B1C5BF3F800EA5173 /* example.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; path = example.cpp; sourceTree = "<group>"; };
-		26359F4C1C5BF3F800EA5173 /* tests.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; path = tests.cpp; sourceTree = "<group>"; };
 		26359F4F1C5BF77B00EA5173 /* README.md */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = net.daringfireball.markdown; path = README.md; sourceTree = "<group>"; };
 		2648146821BADDD4000B40E1 /* jayson.hpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.h; path = jayson.hpp; sourceTree = "<group>"; };
 		265DD6551C5717A30007A098 /* jayson */ = {isa = PBXFileReference; explicitFileType = "compiled.mach-o.executable"; includeInIndex = 0; path = jayson; sourceTree = BUILT_PRODUCTS_DIR; };
+		26B691AF28070238007E4B2E /* tests.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; path = tests.cpp; sourceTree = "<group>"; };
+		26B691B028070238007E4B2E /* tests.hpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.h; path = tests.hpp; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -48,8 +48,8 @@
 			children = (
 				26359F4F1C5BF77B00EA5173 /* README.md */,
 				2648146821BADDD4000B40E1 /* jayson.hpp */,
-				26359F4A1C5BF3F800EA5173 /* tests.hpp */,
-				26359F4C1C5BF3F800EA5173 /* tests.cpp */,
+				26B691AF28070238007E4B2E /* tests.cpp */,
+				26B691B028070238007E4B2E /* tests.hpp */,
 				26359F4B1C5BF3F800EA5173 /* example.cpp */,
 				265DD6561C5717A30007A098 /* Products */,
 			);
@@ -120,7 +120,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				26359F4D1C5BF3F800EA5173 /* example.cpp in Sources */,
-				26359F4E1C5BF3F800EA5173 /* tests.cpp in Sources */,
+				26B691B128070238007E4B2E /* tests.cpp in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -213,6 +213,8 @@
 		265DD65D1C5717A30007A098 /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++0x";
+				GCC_WARN_64_TO_32_BIT_CONVERSION = NO;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 			};
 			name = Debug;
@@ -220,6 +222,8 @@
 		265DD65E1C5717A30007A098 /* Release */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++0x";
+				GCC_WARN_64_TO_32_BIT_CONVERSION = NO;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 			};
 			name = Release;
