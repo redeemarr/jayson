@@ -363,11 +363,6 @@ public:
 	void remove_key(char const* key) { if (type == type::object) data.o->remove(key); }
 	void remove_key(std::string const& key) { remove_key(key.c_str()); }
 	
-	void remove_key(std::size_t index)
-	{
-		if (type == type::array) data.a->erase(data.a->begin() + index);
-	}
-	
 private:
 	
 	void check_type(enum type t)
