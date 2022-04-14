@@ -3,6 +3,7 @@
 #include <string>
 #include <vector>
 #include <unordered_map>
+#include <list>
 #include <sstream>
 #include <fstream>
 #include <iomanip>
@@ -62,9 +63,9 @@ class value
 friend void run_tests();
 public:
 
-	using obj_map_t   = std::unordered_map<std::string, value>;
-	using obj_order_t = std::vector<obj_map_t::iterator>;
-	using array_t     = std::vector<value>;
+	using pair_t   = std::pair<std::string, value>;
+	using object_t = std::list<pair_t>;
+	using array_t  = std::vector<value>;
 	
 	bool from_string(char const* str, std::string* errors = nullptr)
 	{
@@ -141,67 +142,72 @@ private:
 	using ilist_t  = std::initializer_list<value>;
 	using string_t = std::string;
 	
-	class object_t
+	class obj_impl_t
 	{
 	public:
 		
-		void remove(char const* key)
-		{
-			auto it = map.find(key);
-			if (it != map.end())
-			{
-				order.erase(std::find(order.begin(), order.end(), it));
-				map.erase(it);
-			}
-		}
-		
 		bool empty() const { return map.empty(); }
 		std::size_t size() const { return map.size(); }
-		obj_order_t const& get_order() const { return order; }
+		object_t const& object() const { return obj; }
 		
 		bool has_key(std::string const& key) const
 		{
-			return map.find(key) != map.end();
+			return map.find(hash(key)) != map.end();
+		}
+		
+		void remove(std::string const& key)
+		{
+			auto it = map.find(hash(key));
+			if (it != map.end())
+			{
+				obj.erase(it->second);
+				map.erase(it);
+			}
 		}
 
 		value const& get_const(std::string const& key) const
 		{
-			auto it = map.find(key);
-			return it != map.end() ? it->second : value::null();
+			auto it = map.find(hash(key));
+			return it != map.end() ? it->second->second : value::null();
 		}
 
 		value& get(std::string const& key)
 		{
-			auto it = map.find(key);
+			auto h = hash(key);
+			auto it = map.find(h);
 			if (it != map.end())
 			{
-				return it->second;
+				return it->second->second;
 			}
 			else
 			{
-				auto at = map.emplace(key, value()).first;
-				order.push_back(at);
-				return at->second;
+				auto tail = obj.insert(obj.end(), { key, value() });
+				map.insert({ h, tail });
+				return tail->second;
 			}
 		}
 		
 	private:
 	
-		obj_order_t order;
-		obj_map_t   map;
+		using map_t = std::unordered_map<std::size_t, object_t::iterator>;
+	
+		object_t  obj;
+		map_t     map;
+		
+		static std::size_t hash(std::string const& key) { return std::hash<std::string>{}(key); }
 	};
 
 	union
 	{
-		bool      b;
-		double    d;
-		int32_t   i;
-		int64_t   l;
-		uint64_t  u;
-		string_t* s;
-		array_t*  a;
-		object_t* o;
-		bytes_t*  x;
+		bool        b;
+		double      d;
+		int32_t     i;
+		int64_t     l;
+		uint64_t    u;
+		string_t*   s;
+		array_t*    a;
+		obj_impl_t* o;
+		bytes_t*    x;
 	} data;
 	
 	type type;
@@ -246,7 +252,7 @@ public:
 		{
 			case type::string: data.s = new string_t(); break;
 			case type::array:  data.a = new array_t();  break;
-			case type::object: data.o = new object_t(); break;
+			case type::object: data.o = new obj_impl_t(); break;
 			case type::binary: data.x = new bytes_t();  break;
 			default:;
 		}
@@ -346,10 +352,10 @@ public:
 	}
 	
 	// MARK: object access
-	obj_order_t const& object() const
+	object_t const& object() const
 	{
-		static obj_order_t empty;
-		return type == type::object ? data.o->get_order() : empty;
+		static object_t empty;
+		return type == type::object ? data.o->object() : empty;
 	}
 	
 	bool has_key(std::string const& key) const
@@ -937,10 +943,10 @@ private:
 				put_newline();
 				
 				size_t index = 0;
-				for (auto const& it : v.data.o->get_order())
+				for (auto const& it : v.data.o->object())
 				{
-					auto const& key = it->first;
-					auto const& val = it->second;
+					auto const& key = it.first;
+					auto const& val = it.second;
 					
 					put_indents();
 					m_buf << '"';
@@ -1250,9 +1256,9 @@ private:
 					}
 					size_t beg = data.size();
 					write<uint32_t>(0); // len
-					for (auto const& it : val.data.o->get_order())
+					for (auto const& it : val.data.o->object())
 					{
-						write_value(it->first.c_str(), it->second);
+						write_value(it.first.c_str(), it.second);
 					}
 					write<uint8_t>(0x00);
 					uint32_t len = static_cast<uint32_t>(data.size() - beg);

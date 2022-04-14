@@ -4,7 +4,7 @@
 
 int main(int argc, const char* argv[])
 {
-//	json::tests::run(); return 0;
+//	json::run_tests(); return 0;
 
 	// You can generate json data within your code like this:
 	json::value number = 12.34;
