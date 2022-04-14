@@ -64,6 +64,7 @@ public:
 
 	using obj_map_t   = std::unordered_map<std::string, value>;
 	using obj_order_t = std::vector<obj_map_t::iterator>;
+	using array_t     = std::vector<value>;
 	
 	bool from_string(char const* str, std::string* errors = nullptr)
 	{
@@ -139,7 +140,6 @@ private:
 
 	using ilist_t  = std::initializer_list<value>;
 	using string_t = std::string;
-	using array_t  = std::vector<value>;
 	
 	class object_t
 	{
@@ -310,6 +310,12 @@ public:
 	}
 
 	// MARK: array access
+	array_t const& array() const
+	{
+		static array_t empty;
+		return type == type::array ? *data.a : empty;
+	}
+	
 	value& append(value const& v = value())
 	{
 		check_type(type::array);
