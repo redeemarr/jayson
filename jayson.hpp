@@ -3,7 +3,6 @@
 #include <string>
 #include <vector>
 #include <unordered_map>
-#include <list>
 #include <sstream>
 #include <fstream>
 #include <iomanip>
@@ -64,7 +63,7 @@ friend void run_tests();
 public:
 
 	using pair_t   = std::pair<std::string, value>;
-	using object_t = std::list<pair_t>;
+	using object_t = std::vector<pair_t>;
 	using array_t  = std::vector<value>;
 	
 	bool from_string(char const* str, std::string* errors = nullptr)
@@ -146,8 +145,8 @@ private:
 	{
 	public:
 		
-		bool empty() const { return map.empty(); }
-		std::size_t size() const { return map.size(); }
+		bool empty() const { return obj.empty(); }
+		std::size_t size() const { return obj.size(); }
 		object_t const& object() const { return obj; }
 		
 		bool has_key(std::string const& key) const
@@ -160,7 +159,13 @@ private:
 			auto it = map.find(hash(key));
 			if (it != map.end())
 			{
-				obj.erase(it->second);
+				std::size_t index = it->second;
+				for (auto& pair : map)
+				{
+					if (pair.second > index) --pair.second;
+				}
+				
+				obj.erase(obj.begin() + index);
 				map.erase(it);
 			}
 		}
@@ -168,7 +173,7 @@ private:
 		value const& get_const(std::string const& key) const
 		{
 			auto it = map.find(hash(key));
-			return it != map.end() ? it->second->second : value::null();
+			return it != map.end() ? obj[it->second].second : value::null();
 		}
 
 		value& get(std::string const& key)
@@ -177,19 +182,19 @@ private:
 			auto it = map.find(h);
 			if (it != map.end())
 			{
-				return it->second->second;
+				return obj[it->second].second;
 			}
 			else
 			{
-				auto tail = obj.insert(obj.end(), { key, value() });
-				map.insert({ h, tail });
-				return tail->second;
+				map.emplace(h, obj.size());
+				obj.emplace_back(key, value());
+				return obj.back().second;
 			}
 		}
 		
 	private:
 	
-		using map_t = std::unordered_map<std::size_t, object_t::iterator>;
+		using map_t = std::unordered_map<size_t, size_t>; // hash -> index
 	
 		object_t  obj;
 		map_t     map;
