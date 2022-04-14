@@ -59,7 +59,7 @@ inline char const* type_string(type t)
 
 class value
 {
-friend class tests;
+friend void run_tests();
 public:
 
 	using obj_map_t   = std::unordered_map<std::string, value>;

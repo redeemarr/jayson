@@ -2,7 +2,9 @@
 #include <iostream>
 #include "tests.hpp"
 
-#if (TEST_LEAKS)
+#define TEST_LEAKS 1
+
+#if TEST_LEAKS == 1
 
 static long g_allocs = 0;
 static long g_total_allocs = 0;
@@ -67,7 +69,7 @@ void compare_check(std::string const& a, std::string* b)
 	return compare_check(a, *b);
 }
 
-void tests::run()
+void run_tests()
 {
 	std::cout << "sizeof(json::value) = " << sizeof(json::value) << " bytes" << std::endl << std::endl;
 
