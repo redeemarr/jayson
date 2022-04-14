@@ -120,7 +120,7 @@ public:
 		return r.parse_file(filename, *this, errors);
 	}
 
-	bool to_bson_file(char const* filename, serialize_options const& options = serialize_options()) const
+	bool to_bson_file(char const* filename) const
 	{
 		std::ofstream ofs(filename);
 		if (ofs)
