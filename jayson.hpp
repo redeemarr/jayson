@@ -274,6 +274,8 @@ public:
 	
 	value& operator = (value&& v) { std::swap(type, v.type); std::swap(data, v.data); return *this; }
 	
+	enum type get_type() const { return type; }
+	
 	// MARK: type checks
 	bool is(enum type atype) const { return type == atype;  }
 	bool is_null()   const { return type == type::null;     }
