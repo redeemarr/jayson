@@ -1290,25 +1290,25 @@ private:
 				case type::n_double:
 					write<uint8_t>(bson_double);
 					write_string(key);
-					write(&val.data.d, sizeof(double));
+					write(val.data.d);
 					break;
 				
 				case type::n_int32:
 					write<uint8_t>(bson_int32);
 					write_string(key);
-					write(&val.data.i, sizeof(int32_t));
+					write(val.data.i);
 					break;
 				
 				case type::n_int64:
 					write<uint8_t>(bson_int64);
 					write_string(key);
-					write(&val.data.l, sizeof(int32_t));
+					write(val.data.l);
 					break;
 				
 				case type::n_uint64:
 					write<uint8_t>(bson_uint64);
 					write_string(key);
-					write(&val.data.u, sizeof(int32_t));
+					write(val.data.u);
 					break;
 				
 				case type::boolean:
