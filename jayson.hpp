@@ -237,7 +237,7 @@ public:
 	value()                     : value(type::null)     {}
 	value(value const& v)       : value(type::null)     { *this = v; }
 	value(value&& v) noexcept   : value(type::null)     { std::swap(type, v.type); std::swap(data, v.data); }
-	value(char const* v)        : value(type::string)   { *data.s = v; }
+	value(char const* v)        : value(type::string)   { *data.s = v ? v : ""; }
 	value(std::string const& v) : value(type::string)   { *data.s = v; }
 	value(bytes_t const& v)     : value(type::binary)   { *data.x = v; }
 	value(ilist_t const& list)  : value(type::array)    { *data.a = list; }
