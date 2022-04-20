@@ -1228,10 +1228,10 @@ private:
 		
 		char const* fetch_string()
 		{
-			size_t len = strlen(ptr);
+			size_t len = strlen(ptr) + 1;
 			check_end(len);
 			char const* str = ptr;
-			ptr += len + 1;
+			ptr += len;
 			return str;
 		}
 		
