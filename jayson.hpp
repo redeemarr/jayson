@@ -1237,7 +1237,7 @@ private:
 		
 		void check_end(size_t pos)
 		{
-			if (ptr + pos > end) throw fail("end of data reached");
+			if (ptr + pos > end + 1) throw fail("end of data reached");
 		}
 	};
 
