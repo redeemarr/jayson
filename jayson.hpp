@@ -1334,6 +1334,7 @@ private:
 				
 				case type::null:
 					write<uint8_t>(bson_null);
+					write_string(key);
 					break;
 				
 				default:
