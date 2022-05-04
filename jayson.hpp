@@ -853,7 +853,7 @@ private:
 			if (n < 0)
 			{
 				neg = true;
-				n = -n;
+				n = 0 - n;
 			}
 			
 			char* end = buf + sizeof(buf) - 1;
