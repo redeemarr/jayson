@@ -32,7 +32,6 @@ enum class type : char
 	n_double = 'f',
 	n_int32  = 'i',
 	n_int64  = 'l',
-	n_uint64 = 'u',
 	string   = 's',
 	binary   = 'x',
 	array    = 'a',
@@ -48,7 +47,6 @@ inline char const* type_string(type t)
 		case type::n_double: return "double";
 		case type::n_int32:  return "int32";
 		case type::n_int64:  return "int64";
-		case type::n_uint64: return "uint64";
 		case type::string:   return "string";
 		case type::binary:   return "binary";
 		case type::array:    return "array";
@@ -245,10 +243,8 @@ public:
 
 	template <typename T, typename std::enable_if<std::is_same<T, bool>::value, bool>::type = true>                                                               value(T v) : value(type::boolean)  { data.b = v; } // bool
 	template <typename T, typename std::enable_if<std::is_integral<T>::value && sizeof(T) < sizeof(int32_t) && !std::is_same<T, bool>::value, bool>::type = true> value(T v) : value(type::n_int32)  { data.i = v; } // ints less than sizeof(int32) -> int32
-	template <typename T, typename std::enable_if<std::is_integral<T>::value && sizeof(T) == sizeof(int32_t) && std::is_signed<T>::value, bool>::type = true>     value(T v) : value(type::n_int32)  { data.i = v; } // int32
-	template <typename T, typename std::enable_if<std::is_integral<T>::value && sizeof(T) == sizeof(int32_t) && std::is_unsigned<T>::value, bool>::type = true>   value(T v) : value(type::n_uint64) { data.u = v; } // uint32 -> uint64
-	template <typename T, typename std::enable_if<std::is_integral<T>::value && sizeof(T) == sizeof(int64_t) && std::is_signed<T>::value, bool>::type = true>     value(T v) : value(type::n_int64)  { data.l = v; } // int64
-	template <typename T, typename std::enable_if<std::is_integral<T>::value && sizeof(T) == sizeof(int64_t) && std::is_unsigned<T>::value, bool>::type = true>   value(T v) : value(type::n_uint64) { data.u = v; } // uint64
+	template <typename T, typename std::enable_if<std::is_integral<T>::value && sizeof(T) == sizeof(int32_t), bool>::type = true>                                 value(T v) : value(type::n_int32)  { data.i = v; } // int32
+	template <typename T, typename std::enable_if<std::is_integral<T>::value && sizeof(T) == sizeof(int64_t), bool>::type = true>                                 value(T v) : value(type::n_int64)  { data.l = v; } // int64
 	template <typename T, typename std::enable_if<std::is_floating_point<T>::value && sizeof(T) <= sizeof(double), bool>::type = true>                            value(T v) : value(type::n_double) { data.d = v; } // float/double
 
 	value(enum type t) : type(t)
@@ -277,7 +273,6 @@ public:
 			case type::n_double: data.d  =  v.data.d; break;
 			case type::n_int32 : data.i  =  v.data.i; break;
 			case type::n_int64 : data.l  =  v.data.l; break;
-			case type::n_uint64: data.u  =  v.data.u; break;
 			case type::null:;
 		}
 		return *this;
@@ -291,11 +286,10 @@ public:
 	bool is(enum type atype) const { return type == atype;  }
 	bool is_null()   const { return type == type::null;     }
 	bool is_bool()   const { return type == type::boolean;  }
-	bool is_number() const { return type == type::n_double || type == type::n_int32 || type == type::n_int64 || type == type::n_uint64;  }
+	bool is_number() const { return type == type::n_double || type == type::n_int32 || type == type::n_int64;  }
 	bool is_double() const { return type == type::n_double; }
 	bool is_int32()  const { return type == type::n_int32;  }
 	bool is_int64()  const { return type == type::n_int64;  }
-	bool is_uint64() const { return type == type::n_uint64; }
 	bool is_string() const { return type == type::string;   }
 	bool is_array()  const { return type == type::array;    }
 	bool is_object() const { return type == type::object;   }
@@ -310,7 +304,6 @@ public:
 		case type::n_double: return data.d;
 		case type::n_int32:  return data.i;
 		case type::n_int64:  return data.l;
-		case type::n_uint64: return data.u;
 		default: return 0;
 		}
 	}
@@ -1007,10 +1000,6 @@ private:
 			case type::n_int64:
 				write_integer(v.data.l);
 				break;
-				
-			case type::n_uint64:
-				write_integer(v.data.u);
-				break;
 
 			case type::boolean:
 				v.data.b ? m_buf.write("true", 4) : m_buf.write("false", 5);
@@ -1075,7 +1064,7 @@ private:
 		// Deprecated   0x0e - Symbol
 		// Deprecated   0x0f - JavaScript code w/ scope
 		bson_int32    = 0x10,
-		bson_uint64   = 0x11,
+		//              0x11 - Special internal type used by MongoDB replication and sharding. First 4 bytes are an increment, second 4 are a timestamp
 		bson_int64    = 0x12,
 		//              0x13 - 	128-bit decimal floating point
 		//              0xff - 	Min key
@@ -1158,7 +1147,6 @@ private:
 				case bson_int32:    tmp = read<int32_t>();   break;
 				case bson_int64:
 				case bson_utc_time: tmp = read<int64_t>();   break;
-				case bson_uint64:   tmp = read<uint64_t>();  break;
 				case bson_bool:     tmp = read<uint8_t>() > 0 ? true : false; break;
 				case bson_null:     tmp = value(type::null); break;
 				
@@ -1303,12 +1291,6 @@ private:
 					write<uint8_t>(bson_int64);
 					write_string(key);
 					write(val.data.l);
-					break;
-				
-				case type::n_uint64:
-					write<uint8_t>(bson_uint64);
-					write_string(key);
-					write(val.data.u);
 					break;
 				
 				case type::boolean:
