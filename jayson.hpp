@@ -662,16 +662,49 @@ private:
 		
 		void read_unicode_symbol(strbuf_t& sb)
 		{
-			uint16_t code = 0;
-			for (int i=0; i<4; ++i)
+			auto read_word = [&]()
 			{
-				uint16_t sym = *++source;
-				if (!sym) throw fail("unexpected end of unicode symbol");
-				if      (sym >= '0' && sym <= '9') sym -= 48;
-				else if (sym >= 'a' && sym <= 'f') sym -= 87;
-				else if (sym >= 'A' && sym <= 'F') sym -= 55;
-				else throw fail("invalid hex value");
-				code = (code << 4) | sym;
+				uint16_t code = 0;
+				for (int i=0; i<4; ++i)
+				{
+					uint16_t sym = source[i+1];
+					if (!sym) throw fail("unexpected end of unicode symbol");
+					if      (sym >= '0' && sym <= '9') sym -= 48;
+					else if (sym >= 'a' && sym <= 'f') sym -= 87;
+					else if (sym >= 'A' && sym <= 'F') sym -= 55;
+					else throw fail("invalid hex value");
+					code = (code << 4) | sym;
+				}
+				source += 4;
+				return code;
+			};
+			
+			uint32_t code = 0;
+			uint16_t first = read_word();
+			if (first < 0xd800 || first > 0xdfff)
+			{
+				code = first;
+			}
+			else if (first >= 0xdc00)
+			{
+				throw fail("invalid unicode symbol");
+			}
+			else
+			{
+				if (source[1] != '\\' || source[2] != 'u') throw fail("invalid unicode symbol");
+				source += 2;
+			
+				uint16_t second = read_word();
+				code = (first & 0x3ff) << 10;
+				if (second < 0xdc00 || second > 0xdfff)
+				{
+					throw fail("invalid unicode symbol");
+				}
+				else
+				{
+					code = code | (second & 0x3ff);
+					code += 0x10000;
+				}
 			}
 			
 			if (code < 0x80)
@@ -684,11 +717,19 @@ private:
 				<< static_cast<char>(((code >> 6) & 0x1f) | 0xc0)
 				<< static_cast<char>((code & 0x3f) | 0x80);
 			}
-			else
+			else if (code < 0x8000)
 			{
 				sb
 				<< static_cast<char>(((code >> 12) & 0x1f) | 0xe0)
-				<< static_cast<char>(((code >> 6) & 0x3f) | 0x80)
+				<< static_cast<char>(((code >> 6)  & 0x3f) | 0x80)
+				<< static_cast<char>((code & 0x3f) | 0x80);
+			}
+			else
+			{
+				sb
+				<< static_cast<char>(((code >> 18) & 0x1f) | 0xf0)
+				<< static_cast<char>(((code >> 12) & 0x3f) | 0x80)
+				<< static_cast<char>(((code >> 6)  & 0x3f) | 0x80)
 				<< static_cast<char>((code & 0x3f) | 0x80);
 			}
 		}
@@ -867,30 +908,46 @@ private:
 		{
 			while (*str)
 			{
-				if (m_options.utf8_escaping && (*str & 0xc0) == 0xc0)
+				auto write_word = [&](uint16_t word)
 				{
-					int count = (*str & 0xe0) == 0xe0 ? 2 : 1;
-					
-					uint16_t code = *str & 0x1f;
-					for (int i=0; i<count; ++i)
+					char chars[6] = { '\\', 'u' };
+					for (int i=0; i<4; ++i)
 					{
-						if (!*++str) fail("invalid unicode symbol");
-						code = (code << 6) | (*str & 0x3f);
+						char c = word & 0x0f;
+						word >>= 4;
+						chars[5 - i] = c < 10 ? c + 48 : c + 87;
+					}
+					m_buf.write(chars, 6);
+				};
+					
+				if (m_options.utf8_escaping && *str < 0)
+				{
+					uint8_t const mask[] = { 0x00, 0x00, 0x1f, 0x0f, 0x07 };
+					
+					uint32_t code = static_cast<uint8_t>(*str++);
+					size_t octets = 0;
+					
+					if      ((code & 0xe0) == 0xc0)                   octets = 2;
+					else if ((code & 0xf0) == 0xe0)                   octets = 3;
+					else if ((code & 0xf8) == 0xf0 && (code <= 0xf4)) octets = 4;
+					else throw fail("invalid unicode symbol");
+					
+					code &= mask[octets];
+					for (size_t i=1; i<octets; ++i)
+					{
+						code = (code << 6) | (*str++ & 0x3f);
 					}
 					
-					auto hex_sym = [](uint16_t code, int index)
+					if (octets == 2)
 					{
-						char c = (code >> (index * 4)) & 0x0f;
-						c = c < 10 ? c + 48 : c + 87;
-						return c;
-					};
-					
-					char chars[6] = { '\\', 'u' };
-					chars[2] = hex_sym(code, 3);
-					chars[3] = hex_sym(code, 2);
-					chars[4] = hex_sym(code, 1);
-					chars[5] = hex_sym(code, 0);
-					m_buf.write(chars, 6);
+						write_word(code);
+					}
+					else
+					{
+						code -= 0x10000;
+						write_word((code >> 10) | 0xd800);
+						write_word((code & 0x3ff) | 0xdc00);
+					}
 				}
 				else
 				{
@@ -905,8 +962,8 @@ private:
 					case '\t': m_buf << '\\' << 't';  break;
 					default:   m_buf << *str;         break;
 					}
+					++str;
 				}
-				++str;
 			}
 		}
 		
