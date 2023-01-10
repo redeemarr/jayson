@@ -1077,7 +1077,7 @@ private:
 				break;
 				
 			case type::binary:
-				write_string("\"<binary>\"");
+				m_buf.write("\"<binary>\"", 10);
 				break;
 			}
 		}
