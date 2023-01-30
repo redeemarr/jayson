@@ -242,8 +242,8 @@ public:
 	value(ilist_t&& list)       : value(type::array)    { *data.a = list; }
 
 	template <typename T, typename std::enable_if<std::is_same<T, bool>::value, bool>::type = true>                                                               value(T v) : value(type::boolean)  { data.b = v; } // bool
-	template <typename T, typename std::enable_if<std::is_integral<T>::value && sizeof(T) < sizeof(int32_t) && !std::is_same<T, bool>::value, bool>::type = true> value(T v) : value(type::n_int32)  { data.i = v; } // ints less than sizeof(int32) -> int32
-	template <typename T, typename std::enable_if<std::is_integral<T>::value && sizeof(T) == sizeof(int32_t), bool>::type = true>                                 value(T v) : value(type::n_int32)  { data.i = v; } // int32
+	template <typename T, typename std::enable_if<std::is_integral<T>::value && sizeof(T) < sizeof(int32_t) && !std::is_same<T, bool>::value, bool>::type = true> value(T v) : value(type::n_int32)  { data.l = v; } // ints less than sizeof(int32) -> int32, set all bits
+	template <typename T, typename std::enable_if<std::is_integral<T>::value && sizeof(T) == sizeof(int32_t), bool>::type = true>                                 value(T v) : value(type::n_int32)  { data.l = v; } // int32, set all bits
 	template <typename T, typename std::enable_if<std::is_integral<T>::value && sizeof(T) == sizeof(int64_t), bool>::type = true>                                 value(T v) : value(type::n_int64)  { data.l = v; } // int64
 	template <typename T, typename std::enable_if<std::is_floating_point<T>::value && sizeof(T) <= sizeof(double), bool>::type = true>                            value(T v) : value(type::n_double) { data.d = v; } // float/double
 
