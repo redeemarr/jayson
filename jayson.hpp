@@ -23,6 +23,12 @@ struct serialize_options
 	bool        utf8_escaping     = true;
 	std::string indent            = "  ";
 	int         number_precision  = 2;
+
+	static serialize_options& global()
+	{
+		static serialize_options g_options;
+		return g_options;
+	}
 };
 
 enum class type : char
@@ -70,7 +76,7 @@ public:
 		return r.parse_string(str, *this, errors);
 	}
 
-	char const* to_string(serialize_options const& options = serialize_options()) const
+	char const* to_string(serialize_options const& options = serialize_options::global()) const
 	{
 		thread_local strbuf_t buf;
 		json_writer w(buf);
@@ -84,7 +90,7 @@ public:
 		return r.parse_file(filename, *this, errors);
 	};
 
-	bool to_json_file(char const* filename, serialize_options const& options = serialize_options()) const
+	bool to_json_file(char const* filename, serialize_options const& options = serialize_options::global()) const
 	{
 		std::ofstream ofs(filename);
 		if (ofs)
