@@ -804,7 +804,7 @@ private:
 
 		json_writer(strbuf_t& buf) : m_buf(buf) {}
 
-		void write(value const& v, serialize_options const& options = serialize_options())
+		void write(value const& v, serialize_options const& options)
 		{
 			m_buf.clear();
 			m_options = options;
