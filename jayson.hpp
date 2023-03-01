@@ -944,14 +944,14 @@ private:
 						code = (code << 6) | (*str++ & 0x3f);
 					}
 					
-					if (octets == 2)
+					if (code < 0x10000)
 					{
 						write_word(code);
 					}
 					else
 					{
 						code -= 0x10000;
-						write_word((code >> 10) | 0xd800);
+						write_word((code >> 10)   | 0xd800);
 						write_word((code & 0x3ff) | 0xdc00);
 					}
 				}
