@@ -981,11 +981,12 @@ private:
 				++m_indents;
 				put_newline();
 				
+				size_t index = 0;
 				for (auto const& it : *v.data.a)
 				{
 					put_indents();
 					write_value(it);
-					if (&it != &v.data.a->back()) m_buf << ',';
+					if (index++ != v.data.a->size() - 1) m_buf << ',';
 					put_newline();
 				}
 				
