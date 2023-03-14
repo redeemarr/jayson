@@ -558,7 +558,9 @@ private:
 						skip_whitespaces();
 						read_value(val(key));
 						skip_whitespaces();
-						if (*source == ',') ++source;
+						if      (*source == ',') ++source;
+						else if (*source == '}') return;
+						else throw fail("missing comma in object");
 					}
 					else
 					{
@@ -589,7 +591,9 @@ private:
 				val.data.a->emplace_back();
 				read_value(val.data.a->back());
 				skip_whitespaces();
-				if (*source == ',') ++source;
+				if      (*source == ',') ++source;
+				else if (*source == ']') return;
+				else throw fail("missing comma in array");
 			}
 			throw fail("unexpected end of array");
 		}
