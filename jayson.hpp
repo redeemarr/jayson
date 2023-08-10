@@ -105,6 +105,12 @@ public:
 		return false;
 	}
 
+	bool from_bytes(char const* data, size_t size, std::string* errors = nullptr)
+	{
+		bson_reader r;
+		return r.parse_data(data, size, *this, errors);
+	}
+
 	bool from_bytes(bytes_t const& data, std::string* errors = nullptr)
 	{
 		bson_reader r;
