@@ -1164,10 +1164,15 @@ private:
 		
 		bool parse_data(bytes_t const& data, value& result, std::string* errors)
 		{
-			if (!data.empty())
+			return parse_data(data.data(), data.size(), result, errors);
+		}
+		
+		bool parse_data(char const* data, size_t size, value& result, std::string* errors)
+		{
+			if (size > 0)
 			{
-				ptr = data.data();
-				end = ptr + data.size();
+				ptr = data;
+				end = data + size;
 				result = value(type::object);
 				try
 				{
