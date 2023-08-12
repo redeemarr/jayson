@@ -119,7 +119,8 @@ public:
 	
 	bytes_t to_bytes() const
 	{
-		bson_writer w;
+		thread_local bson_writer w;
+		w.clear();
 		w.write_value(nullptr, *this);
 		return w.data;
 	}
@@ -1314,6 +1315,11 @@ private:
 	struct bson_writer
 	{
 		bytes_t data;
+		
+		void clear()
+		{
+			data.resize(0);
+		}
 		
 		void write_value(char const* key, value const& val)
 		{
