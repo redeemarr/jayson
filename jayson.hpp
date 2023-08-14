@@ -1412,9 +1412,8 @@ private:
 		
 		void write(void const* ptr, size_t size)
 		{
-			size_t prev = data.size();
-			data.resize(data.size() + size);
-			memcpy(data.data() + prev, ptr, size);
+			char const* src = static_cast<char const*>(ptr);
+			data.insert(data.end(), src, src + size);
 		}
 		
 		template <typename T> void write(T const& t) { write(&t, sizeof(T)); }
