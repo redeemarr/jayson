@@ -968,16 +968,24 @@ private:
 				}
 				else
 				{
-					switch (*str)
+					uint8_t code = static_cast<uint8_t>(*str);
+					if (code < 0x20 || code == 0x7f) // control characters must always be escaped
 					{
-					case  '"': m_buf << '\\' << '\"'; break;
-					case '\\': m_buf << '\\' << '\\'; break;
-					case '\b': m_buf << '\\' << 'b';  break;
-					case '\f': m_buf << '\\' << 'f';  break;
-					case '\n': m_buf << '\\' << 'n';  break;
-					case '\r': m_buf << '\\' << 'r';  break;
-					case '\t': m_buf << '\\' << 't';  break;
-					default:   m_buf << *str;         break;
+						write_word(*str);
+					}
+					else
+					{
+						switch (*str)
+						{
+						case  '"': m_buf << '\\' << '\"'; break;
+						case '\\': m_buf << '\\' << '\\'; break;
+						case '\b': m_buf << '\\' << 'b';  break;
+						case '\f': m_buf << '\\' << 'f';  break;
+						case '\n': m_buf << '\\' << 'n';  break;
+						case '\r': m_buf << '\\' << 'r';  break;
+						case '\t': m_buf << '\\' << 't';  break;
+						default:   m_buf << *str;         break;
+						}
 					}
 					++str;
 				}
